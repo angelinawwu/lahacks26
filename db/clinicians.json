@@ -1,0 +1,100 @@
+{
+  "_default": {
+    "1": {
+      "id": "dr_chen",
+      "name": "Dr. Sarah Chen",
+      "specialty": ["cardiology"],
+      "status": "available",
+      "on_call": true,
+      "zone": "floor_3_corridor",
+      "lat": 34.0689,
+      "lng": -118.4452,
+      "page_count_1hr": 1,
+      "active_cases": 1
+    },
+    "2": {
+      "id": "dr_rodriguez",
+      "name": "Dr. Miguel Rodriguez",
+      "specialty": ["cardiology", "internal_medicine"],
+      "status": "available",
+      "on_call": true,
+      "zone": "icu",
+      "lat": 34.0691,
+      "lng": -118.4454,
+      "page_count_1hr": 0,
+      "active_cases": 2
+    },
+    "3": {
+      "id": "dr_patel",
+      "name": "Dr. Priya Patel",
+      "specialty": ["emergency_medicine", "trauma"],
+      "status": "available",
+      "on_call": true,
+      "zone": "nurses_station",
+      "lat": 34.0690,
+      "lng": -118.4451,
+      "page_count_1hr": 2,
+      "active_cases": 1
+    },
+    "4": {
+      "id": "dr_kim",
+      "name": "Dr. James Kim",
+      "specialty": ["neurology"],
+      "status": "in_procedure",
+      "on_call": true,
+      "zone": "or_1",
+      "lat": 34.0687,
+      "lng": -118.4455,
+      "page_count_1hr": 0,
+      "active_cases": 1
+    },
+    "5": {
+      "id": "dr_williams",
+      "name": "Dr. Emily Williams",
+      "specialty": ["surgery", "trauma"],
+      "status": "available",
+      "on_call": false,
+      "zone": "floor_3_corridor",
+      "lat": 34.0689,
+      "lng": -118.4452,
+      "page_count_1hr": 4,
+      "active_cases": 0
+    },
+    "6": {
+      "id": "dr_oconnor",
+      "name": "Dr. Sean O'Connor",
+      "specialty": ["internal_medicine", "emergency_medicine"],
+      "status": "available",
+      "on_call": true,
+      "zone": "break_room",
+      "lat": 34.0685,
+      "lng": -118.4450,
+      "page_count_1hr": 0,
+      "active_cases": 0
+    },
+    "7": {
+      "id": "dr_gupta",
+      "name": "Dr. Ananya Gupta",
+      "specialty": ["anesthesiology"],
+      "status": "available",
+      "on_call": true,
+      "zone": "or_2",
+      "lat": 34.0688,
+      "lng": -118.4456,
+      "page_count_1hr": 1,
+      "active_cases": 2
+    },
+    "8": {
+      "id": "dr_brown",
+      "name": "Dr. Marcus Brown",
+      "specialty": ["emergency_medicine"],
+      "status": "off_shift",
+      "on_call": false,
+      "zone": "parking_garage",
+      "lat": 34.0680,
+      "lng": -118.4458,
+      "page_count_1hr": 0,
+      "active_cases": 0
+    }
+  }
+}

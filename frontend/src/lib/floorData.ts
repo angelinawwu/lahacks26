@@ -192,31 +192,72 @@ export function pinPositionsInRect(rect: Rect, count: number): { cx: number; cy:
   return out;
 }
 
-// Map a freeform zone string (from socket data) onto a known floor + wing.
+// Map a freeform zone string (from socket/TinyDB) onto a known floor + wing.
+// Handles patterns like `floor_3_corridor`, `or_1`, `nurses_station`, `icu`, etc.
 export function inferFloorWing(zone?: string | null): { floor: FloorId; wing: WingId } {
-  const z = (zone ?? "").toLowerCase();
-  if (/icu|4204|4266|teen|pediatric|6204|geriatric|5204|rehab|radiology/.test(z)) {
-    if (/teen|pediatric|6204/.test(z)) return { floor: "6", wing: "north" };
-    if (/geriatric|5204/.test(z)) return { floor: "5", wing: "north" };
-    if (/icu|4204|4266/.test(z)) return { floor: "4", wing: "north" };
-    return { floor: "3", wing: "north" };
-  }
-  if (/oncology|ortho|luskin|3204|4502/.test(z)) {
-    if (/3204/.test(z)) return { floor: "3", wing: "orthopaedic" };
-    if (/oncology|4502/.test(z)) return { floor: "4", wing: "orthopaedic" };
-    if (/luskin/.test(z)) return { floor: "2", wing: "orthopaedic" };
-    return { floor: "3", wing: "orthopaedic" };
-  }
-  if (/labor|delivery|perinatal|2412|2510|surg|er|emergency/.test(z)) {
-    if (/er|emergency/.test(z)) return { floor: "A", wing: "southwest" };
-    if (/perinatal/.test(z)) return { floor: "1", wing: "southwest" };
-    if (/labor|2412|2510/.test(z)) return { floor: "2", wing: "southwest" };
+  // Normalize: lowercase + replace underscores with spaces so `\b` boundaries
+  // work (in JS regex `_` is a word character, so `\bteen\b` won't match `teen_center`).
+  const z = (zone ?? "").toLowerCase().trim().replace(/_/g, " ");
+
+  // --- 1. Explicit keywords that pin to a specific floor+wing ---------------
+  // Floor 6 — pediatric / teen
+  if (/\b(teen|pediatric|peds|6204|6266)\b/.test(z)) return { floor: "6", wing: "north" };
+  // Floor 5 — intermediate / geriatric
+  if (/\b(imcu|intermediate)\b/.test(z)) return { floor: "5", wing: "central" };
+  if (/\b(geriatric|5204|5266)\b/.test(z)) return { floor: "5", wing: "north" };
+  if (/\b5410\b/.test(z)) return { floor: "5", wing: "southwest" };
+  // Floor 4 — ICU / oncology / PICU / MRI
+  if (/\b(picu|pulm|pulmonary|mri)\b/.test(z)) return { floor: "4", wing: "central" };
+  if (/\b(icu|4204|4266)\b/.test(z)) return { floor: "4", wing: "north" };
+  if (/\b(oncology|4502|4556)\b/.test(z)) return { floor: "4", wing: "orthopaedic" };
+  if (/\b(4318|4364|4410|4494|med[_\s-]?surg)\b/.test(z)) return { floor: "4", wing: "central" };
+  // Floor 3 — surgical / rehab / operating rooms
+  if (/\b(or[_\s-]?\d+|operating[_\s-]?room|surgery|surgical|surg(?!ery)|post[_\s-]?op|pacu)\b/.test(z))
     return { floor: "3", wing: "southwest" };
+  if (/\b(rehab|rehabilitation)\b/.test(z)) return { floor: "3", wing: "north" };
+  if (/\b(ortho|orthopaedic|3204|3266)\b/.test(z)) return { floor: "3", wing: "orthopaedic" };
+  // Floor 2 — L&D / NICU / radiology / imaging
+  if (/\b(nicu|nursery|postpartum)\b/.test(z)) return { floor: "2", wing: "central" };
+  if (/\b(radiology|imaging|ct[_\s-]?scan|x[_\s-]?ray|fluoro|ultrasound)\b/.test(z))
+    return { floor: "2", wing: "north" };
+  if (/\b(labor|delivery|l&d|2412|2510)\b/.test(z)) return { floor: "2", wing: "southwest" };
+  if (/\b(luskin)\b/.test(z)) return { floor: "2", wing: "orthopaedic" };
+  // Floor 1 — perinatal / outpatient
+  if (/\b(perinatal|mpu|medical[_\s-]?procedures|outpatient|1401|terrace)\b/.test(z))
+    return { floor: "1", wing: "central" };
+  // Floor A — ER, admissions, cafeteria, parking, chapel
+  if (/\b(er|emergency[_\s-]?room|trauma[_\s-]?bay|ambulance)\b/.test(z))
+    return { floor: "A", wing: "southwest" };
+  if (/\b(admissions|admitting|cashier|security|conference[_\s-]?center)\b/.test(z))
+    return { floor: "A", wing: "central" };
+  if (/\b(cafeteria|cafe|gift[_\s-]?shop|courtyard|dining)\b/.test(z))
+    return { floor: "A", wing: "central" };
+  if (/\b(chapel|meditation|sw[_\s-]?lobby|lobby)\b/.test(z))
+    return { floor: "A", wing: "southwest" };
+  if (/\b(parking|garage|loading[_\s-]?dock|basement)\b/.test(z))
+    return { floor: "A", wing: "southwest" };
+  if (/\b(admin|administration)\b/.test(z))
+    return { floor: "A", wing: "north" };
+  if (/\b(merle[_\s-]?norman|mn[_\s-]?pavilion|pavilion)\b/.test(z))
+    return { floor: "A", wing: "merle_norman" };
+
+  // --- 2. Fallback: extract explicit floor number from `floor_N_*` style ----
+  const floorMatch = z.match(/floor[_\s-]?([a1-6])\b/);
+  if (floorMatch) {
+    const raw = floorMatch[1].toUpperCase();
+    const floor: FloorId = (raw === "A" ? "A" : raw) as FloorId;
+    // Try to infer wing from trailing descriptor.
+    if (/north/.test(z)) return { floor, wing: "north" };
+    if (/south|southwest|sw\b/.test(z)) return { floor, wing: "southwest" };
+    if (/ortho/.test(z)) return { floor, wing: "orthopaedic" };
+    if (/merle|pavilion/.test(z)) return { floor, wing: "merle_norman" };
+    // Corridor / nurses station / break room — default to central hallway.
+    return { floor, wing: "central" };
   }
-  if (/nicu|nursery|postpartum|picu|mri|surgical/.test(z)) {
-    if (/nicu|nursery|postpartum/.test(z)) return { floor: "2", wing: "central" };
-    if (/picu|mri|pulm/.test(z)) return { floor: "4", wing: "central" };
+
+  // --- 3. Floor-less generic zones (can't pin): keep as central/floor 3 ------
+  if (/\b(nurses?[_\s-]?station|break[_\s-]?room|lounge|corridor|hallway)\b/.test(z))
     return { floor: "3", wing: "central" };
-  }
+
   return { floor: "3", wing: "central" };
 }

@@ -1,0 +1,7 @@
+# MedPage — Python agents + HTTP API for the web UI
+uagents
+tinydb
+python-dotenv
+requests
+fastapi>=0.100
+uvicorn[standard]>=0.22

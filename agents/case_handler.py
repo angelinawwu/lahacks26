@@ -9,6 +9,7 @@ Implements zone-based travel time estimation per WiFi-location requirement.
 """
 from __future__ import annotations
 import json
+import logging
 import os
 from typing import List, Optional, Dict, Any
 
@@ -20,6 +21,8 @@ from agents.models import AlertMessage, PriorityResponse, CaseResponse, Candidat
 from agents.asi_client import asi1_chat, extract_json
 
 load_dotenv()
+
+_log = logging.getLogger(__name__)
 
 SEED = os.getenv("CASE_SEED", "case-handler-dev-seed")
 PORT = int(os.getenv("CASE_PORT", "8003"))
@@ -312,22 +315,18 @@ class CaseHandlerRequest(_Model):
     guardrail_flags: List[str] = []
 
 
-@agent.on_event("startup")
-async def _startup(ctx: Context):
-    ctx.logger.info(f"[case_handler] address={agent.address}")
-    ctx.logger.info(f"[case_handler] db={DB_PATH}")
-
-
-@agent.on_message(model=CaseHandlerRequest, replies=CaseResponse)
-async def handle_case(ctx: Context, sender: str, msg: CaseHandlerRequest):
-    ctx.logger.info(f"[case_handler] case from {sender[:12]}…: {msg.alert.raw_text!r}")
-    
-    # Load database
+def process_case(
+    alert: AlertMessage,
+    priority: str,
+    guardrail_flags: List[str],
+) -> CaseResponse:
+    """
+    Run case resolution (DB query, scoring, ASI-1 or fallback).
+    Used by the uAgent handler and the HTTP API.
+    """
     db = TinyDB(DB_PATH)
-    
-    # Determine target zone from alert room
-    target_zone = msg.alert.room.lower().replace(" ", "_") if msg.alert.room else "nurses_station"
-    # Map common room patterns to zones
+
+    target_zone = alert.room.lower().replace(" ", "_") if alert.room else "nurses_station"
     zone_map = {
         "room_412": "floor_3_corridor",
         "room_301": "icu",
@@ -338,35 +337,41 @@ async def handle_case(ctx: Context, sender: str, msg: CaseHandlerRequest):
         if pattern in target_zone:
             target_zone = zone
             break
-    
-    # Build specialty query with emergency fallback
-    specialties = build_specialty_query(msg.alert)
-    ctx.logger.info(f"[case_handler] querying specialties: {specialties}, target_zone: {target_zone}")
-    
-    # Query available clinicians
+
+    specialties = build_specialty_query(alert)
+    _log.info(f"[case_handler] querying specialties: {specialties}, target_zone: {target_zone}")
+
     candidates = query_clinicians(db, specialties)
-    ctx.logger.info(f"[case_handler] found {len(candidates)} candidates")
-    
+    _log.info(f"[case_handler] found {len(candidates)} candidates")
+
     if not candidates:
-        # Emergency fallback: query ANY available clinician
-        ctx.logger.warning("[case_handler] NO candidates found, emergency fallback to any available")
-        candidates = query_clinicians(db, ["emergency_medicine", "internal_medicine", "surgery", "anesthesiology"])
-    
-    # Score candidates
-    scored = score_candidates(candidates, target_zone, msg.guardrail_flags)
-    
-    # Rank with ASI-1 or fallback
-    resp = rank_with_asi1(msg.alert, scored, msg.priority)
+        _log.warning("[case_handler] NO candidates found, emergency fallback to any available")
+        candidates = query_clinicians(
+            db, ["emergency_medicine", "internal_medicine", "surgery", "anesthesiology"]
+        )
+
+    scored = score_candidates(candidates, target_zone, guardrail_flags)
+    resp = rank_with_asi1(alert, scored, priority)
     if resp is None:
         resp = fallback_rank(scored)
-    
     resp.specialty_query = specialties
-    
+    return resp
+
+
+@agent.on_event("startup")
+async def _startup(ctx: Context):
+    ctx.logger.info(f"[case_handler] address={agent.address}")
+    ctx.logger.info(f"[case_handler] db={DB_PATH}")
+
+
+@agent.on_message(model=CaseHandlerRequest, replies=CaseResponse)
+async def handle_case(ctx: Context, sender: str, msg: CaseHandlerRequest):
+    ctx.logger.info(f"[case_handler] case from {sender[:12]}…: {msg.alert.raw_text!r}")
+    resp = process_case(msg.alert, msg.priority, msg.guardrail_flags)
     ctx.logger.info(
         f"[case_handler] reasoning: {resp.reasoning} | "
         f"candidates={[c.id for c in resp.candidates]} fallback={resp.fallback_used}"
     )
-    
     await ctx.send(sender, resp)
 
 

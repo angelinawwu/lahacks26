@@ -72,6 +72,13 @@ app.register_blueprint(rooms_bp)
 app.register_blueprint(pages_bp)
 app.register_blueprint(queue_bp)
 
+# Seed at import time so Gunicorn workers have data without __main__ running
+state.seed()
+_log.info(
+    "State seeded — doctors=%d nurses=%d patients=%d rooms=%d",
+    len(state.DOCTORS), len(state.NURSES), len(state.PATIENTS), len(state.ROOMS),
+)
+
 
 # ---------------------------------------------------------------------------
 # Health

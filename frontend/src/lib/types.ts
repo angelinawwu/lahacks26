@@ -28,15 +28,23 @@ export interface CaseResult {
 }
 
 export interface DispatchResult {
+  alert_id?: string;
   priority: PriorityResult;
   case: CaseResult;
 }
+
+export type ClinicianStatus =
+  | "available"
+  | "in_procedure"
+  | "off_shift"
+  | "on_case"
+  | "paging";
 
 export type ClinicianRecord = {
   id: string;
   name: string;
   specialty: string[];
-  status: string;
+  status: ClinicianStatus | string;
   on_call: boolean;
   zone: string;
   page_count_1hr: number;
@@ -44,3 +52,68 @@ export type ClinicianRecord = {
   lat?: number;
   lng?: number;
 };
+
+// --------------------------------------------------------------------------- //
+// Socket.IO event payloads (mirrors api/main.py)                               //
+// --------------------------------------------------------------------------- //
+export type AlertStatus =
+  | "paging"
+  | "accepted"
+  | "en_route"
+  | "escalating"
+  | "declined"
+  | "resolved"
+  | "queued";
+
+export interface AlertEvent {
+  alert_id: string;
+  title: string;
+  room?: string | null;
+  priority: PriorityLevel | string;
+  assigned_clinician_id?: string | null;
+  assigned_clinician_name?: string | null;
+  specialty?: string[];
+  status: AlertStatus | string;
+  created_at: string;
+  ack_deadline_seconds: number;
+  reasoning?: string;
+  guardrail_flags?: string[];
+  responded_at?: string;
+}
+
+export interface IncomingPagePayload {
+  alert_id: string;
+  title: string;
+  room?: string | null;
+  priority: PriorityLevel | string;
+  reasoning: string;
+  created_at: string;
+  ack_deadline_seconds: number;
+}
+
+export interface PageResolvedPayload {
+  alert_id: string;
+  outcome: "accepted" | "declined" | "escalated" | "resolved";
+}
+
+export interface ClinicianStatusChanged {
+  clinician_id: string;
+  status: ClinicianStatus | string;
+  zone?: string;
+}
+
+export interface OperatorSnapshot {
+  active_cases: AlertEvent[];
+  clinicians: ClinicianRecord[];
+}
+
+export interface PageResponsePayload {
+  alert_id: string;
+  clinician_id: string;
+  response: "accept" | "decline";
+}
+
+export interface StatusUpdatePayload {
+  clinician_id: string;
+  status: ClinicianStatus;
+}

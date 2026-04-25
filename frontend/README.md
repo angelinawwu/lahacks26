@@ -1,5 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## MedPage
+
+- `/` — original `MedPageConsole` quick-dispatch (REST only).
+- `/operator` — operator dashboard (desktop, realtime).
+- `/clinician?id=dr_chen` — clinician mobile view (realtime).
+
+The backend now serves REST + Socket.IO from the same port via the ASGI
+wrapper. Start it from the repo root with:
+
+```bash
+uvicorn api.main:asgi_app --reload --port 8000
+```
+
+Copy `.env.local.example` to `.env.local` so the frontend can find both
+the REST API (`NEXT_PUBLIC_API_URL`) and the Socket.IO server
+(`NEXT_PUBLIC_SOCKET_URL`).
+
 ## Getting Started
 
 First, run the development server:

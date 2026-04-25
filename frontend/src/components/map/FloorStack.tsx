@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import {
   FLOORS,
   WING_RECTS,
@@ -9,21 +10,90 @@ import {
   PRIORITY_PULSE,
   type FloorId,
   type WingId,
+  type Rect,
 } from "@/lib/floorData";
 import type { ActiveAlert, ClinicianPin } from "@/lib/types";
 
 const EASE_OUT_QUART = [0.165, 0.84, 0.44, 1] as const;
 
-// Compress 0..1000 wing coords into the card's drawing area.
-const CARD_W = 540;
-const CARD_H = 160;
-const SCALE_X = CARD_W / 1000;
-const SCALE_Y = (CARD_H - 16) / 700;
+// Isometric projection (classic 2:1 dimetric).
+const ISO_ANGLE_X = (Math.PI / 180) * 30;
+const ISO_ANGLE_Y = (Math.PI / 180) * 30;
+const SIN_X = Math.sin(ISO_ANGLE_X);
+const COS_Y = Math.cos(ISO_ANGLE_Y);
+
+// Floor plan dimensions in plane-space, before iso projection.
+const PLANE_W = 380;
+const PLANE_H = 160;
+const LABEL_LEFT_X = 16;
+const LABEL_W = 82;
+// Vertical (z) gap between stacked floors.
+const FLOOR_GAP = 60;
+// Diagonal stagger per floor in screen-space (x shifts right as floors go up).
+const STAGGER_X = 22;
+
+const VIEW_W = 760;
+const VIEW_H = 580;
+
+// Project a (x,y,z) point to 2D using isometric matrix, centered in viewBox.
+function project(x: number, y: number, z: number) {
+  const px = (x - y) * COS_Y;
+  const py = (x + y) * SIN_X - z;
+  return { x: px + VIEW_W / 2, y: py + VIEW_H / 2 };
+}
 
 function topPriority(alerts: ActiveAlert[]): "P1" | "P2" | "P3" | "P4" | null {
   const order: ("P1" | "P2" | "P3" | "P4")[] = ["P1", "P2", "P3", "P4"];
   for (const p of order) if (alerts.some((a) => a.priority === p)) return p;
   return null;
+}
+
+// Compute parallelogram path for a floor plane at given z.
+function planePath(z: number) {
+  const half = PLANE_W / 2;
+  const halfH = PLANE_H / 2;
+  const a = project(-half, -halfH, z);
+  const b = project(half, -halfH, z);
+  const c = project(half, halfH, z);
+  const d = project(-half, halfH, z);
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} L ${d.x} ${d.y} Z`;
+}
+
+// Map a wing rect from the 0..1000 / 0..700 viewBox into local plane coords.
+function wingPlaneRect(wingId: WingId) {
+  const r = WING_RECTS[wingId];
+  const sx = PLANE_W / 1000;
+  const sy = PLANE_H / 700;
+  return {
+    x: r.x * sx - PLANE_W / 2,
+    y: r.y * sy - PLANE_H / 2,
+    w: r.w * sx,
+    h: r.h * sy,
+  };
+}
+
+function wingPath(wingId: WingId, z: number) {
+  const r = wingPlaneRect(wingId);
+  const a = project(r.x, r.y, z);
+  const b = project(r.x + r.w, r.y, z);
+  const c = project(r.x + r.w, r.y + r.h, z);
+  const d = project(r.x, r.y + r.h, z);
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} L ${d.x} ${d.y} Z`;
+}
+
+// Project an arbitrary rect from 0..1000/0..700 space onto a floor's iso plane.
+function rectPath(rect: Rect, z: number) {
+  const sx = PLANE_W / 1000;
+  const sy = PLANE_H / 700;
+  const lx = rect.x * sx - PLANE_W / 2;
+  const ly = rect.y * sy - PLANE_H / 2;
+  const lw = rect.w * sx;
+  const lh = rect.h * sy;
+  const a = project(lx, ly, z);
+  const b = project(lx + lw, ly, z);
+  const c = project(lx + lw, ly + lh, z);
+  const d = project(lx, ly + lh, z);
+  return `M ${a.x} ${a.y} L ${b.x} ${b.y} L ${c.x} ${c.y} L ${d.x} ${d.y} Z`;
 }
 
 export function FloorStack({
@@ -35,144 +105,130 @@ export function FloorStack({
   alerts: ActiveAlert[];
   onSelectFloor: (id: FloorId) => void;
 }) {
-  // Render top to bottom: floor 6 first, A last.
-  const ordered = [...FLOORS].reverse();
+  const [hovered, setHovered] = useState<FloorId | null>(null);
+  const mid = (FLOORS.length - 1) / 2;
 
   return (
-    <div
-      className="flex h-full w-full items-center justify-center"
-      style={{ perspective: 1200 }}
+    <svg
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ display: "block" }}
     >
-      <div
-        style={{
-          transform: "rotateX(52deg) rotateZ(-30deg)",
-          transformStyle: "preserve-3d",
-        }}
-      >
-        {ordered.map((f, i) => {
-          const fAlerts = alerts.filter((a) => a.floor === f.id);
-          const fClinicians = clinicians.filter((c) => c.floor === f.id);
-          const pulse = topPriority(fAlerts);
-          return (
-            <motion.div
-              key={f.id}
-              onClick={() => onSelectFloor(f.id)}
-              whileHover={{ filter: "brightness(1.08)", y: -4 }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.04, ease: EASE_OUT_QUART }}
-              style={{
-                position: "relative",
-                width: CARD_W,
-                height: CARD_H,
-                marginTop: i === 0 ? 0 : -CARD_H + 28,
-                cursor: "pointer",
-                transformStyle: "preserve-3d",
-              }}
-            >
-              {/* Floor label badge */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: -78,
-                  top: 14,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#0F172A",
-                  background: "#FFFFFF",
-                  border: "1px solid #CBD5E1",
-                  borderRadius: 6,
-                  padding: "4px 10px",
-                  transform: "rotateZ(30deg) rotateX(-52deg)",
-                }}
-              >
-                {f.label}
-              </div>
+      {FLOORS.map((f, i) => {
+        const baseZ = (i - mid) * FLOOR_GAP;
+        const fAlerts = alerts.filter((a) => a.floor === f.id);
+        const fClinicians = clinicians.filter((c) => c.floor === f.id);
+        const pulse = topPriority(fAlerts);
+        const isHovered = hovered === f.id;
+        const labelAnchor = project(-PLANE_W / 2 - 8, -PLANE_H / 2, baseZ);
 
-              <svg
-                viewBox={`0 0 ${CARD_W} ${CARD_H}`}
-                width={CARD_W}
-                height={CARD_H}
-                style={{ display: "block" }}
-              >
-                {/* Card background */}
-                <rect
-                  x={0}
-                  y={0}
-                  width={CARD_W}
-                  height={CARD_H}
-                  fill="#F8FAFC"
-                  stroke="#CBD5E1"
-                  strokeWidth={1}
-                  rx={6}
+        return (
+          <motion.g
+            key={f.id}
+            onClick={() => onSelectFloor(f.id)}
+            onHoverStart={() => setHovered(f.id)}
+            onHoverEnd={() => setHovered(null)}
+            initial={{ opacity: 0, x: (i - mid) * STAGGER_X - 8 }}
+            animate={{ opacity: 1, x: (i - mid) * STAGGER_X }}
+            transition={{
+              duration: 0.25,
+              delay: (FLOORS.length - i) * 0.05,
+              ease: [0.165, 0.84, 0.44, 1],
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            {/* Wing fills */}
+            {f.wings.map((wing) => {
+              const c = WING_COLORS[wing];
+              return (
+                <path
+                  key={wing}
+                  d={wingPath(wing, baseZ)}
+                  fill={c.fill}
+                  stroke={c.stroke}
+                  strokeWidth={0.6}
                 />
+              );
+            })}
 
-                {/* Wing footprints */}
-                {f.wings.map((wing: WingId) => {
-                  const r = WING_RECTS[wing];
-                  const c = WING_COLORS[wing];
-                  return (
-                    <rect
-                      key={wing}
-                      x={r.x * SCALE_X}
-                      y={r.y * SCALE_Y + 8}
-                      width={r.w * SCALE_X}
-                      height={r.h * SCALE_Y}
-                      fill={c.fill}
-                      stroke={c.stroke}
-                      strokeWidth={0.8}
-                    />
-                  );
-                })}
+            {/* Room subdivisions */}
+            {f.rooms.map((room) => (
+              <path
+                key={room.id}
+                d={rectPath(room.rect, baseZ)}
+                fill="none"
+                stroke={WING_COLORS[room.wing].stroke}
+                strokeWidth={0.5}
+                strokeOpacity={0.7}
+              />
+            ))}
 
-                {/* Pulse overlay if alerts on this floor */}
-                {pulse ? (
-                  <motion.rect
-                    x={2}
-                    y={2}
-                    width={CARD_W - 4}
-                    height={CARD_H - 4}
-                    rx={6}
-                    fill="none"
-                    stroke={PRIORITY_PULSE[pulse].color}
-                    strokeWidth={2}
-                    initial={{ opacity: 0.3 }}
-                    animate={{ opacity: [0.3, 0.85, 0.3] }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            {/* Pulse outline if alerts on this floor */}
+            {pulse ? (
+              <motion.path
+                d={planePath(baseZ)}
+                fill="none"
+                stroke={PRIORITY_PULSE[pulse].color}
+                strokeWidth={2}
+                initial={{ opacity: 0.3 }}
+                animate={{ opacity: [0.3, 0.85, 0.3] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+              />
+            ) : null}
+
+            {/* Clinician dots clustered per wing */}
+            {f.wings.flatMap((wing) => {
+              const members = fClinicians.filter((c) => c.wing === wing).slice(0, 6);
+              const r = wingPlaneRect(wing);
+              const cols = Math.max(1, Math.ceil(Math.sqrt(members.length)));
+              const rows = Math.max(1, Math.ceil(members.length / cols));
+              return members.map((m, idx) => {
+                const col = idx % cols;
+                const rw = Math.floor(idx / cols);
+                const lx = r.x + ((col + 0.5) * r.w) / cols;
+                const ly = r.y + ((rw + 0.5) * r.h) / rows;
+                const p = project(lx, ly, baseZ);
+                return (
+                  <circle
+                    key={m.id}
+                    cx={p.x}
+                    cy={p.y}
+                    r={3}
+                    fill={STATUS_COLORS[m.status] ?? STATUS_COLORS.available}
+                    stroke="#FFFFFF"
+                    strokeWidth={0.6}
                   />
-                ) : null}
+                );
+              });
+            })}
 
-                {/* Clinician dots clustered per wing */}
-                {f.wings.flatMap((wing) => {
-                  const members = fClinicians.filter((c) => c.wing === wing).slice(0, 6);
-                  const r = WING_RECTS[wing];
-                  return members.map((m, idx) => {
-                    const cols = Math.ceil(Math.sqrt(members.length));
-                    const rows = Math.ceil(members.length / cols);
-                    const col = idx % cols;
-                    const rw = Math.floor(idx / cols);
-                    const cx =
-                      (r.x + ((col + 0.5) * r.w) / cols) * SCALE_X;
-                    const cy =
-                      (r.y + ((rw + 0.5) * r.h) / rows) * SCALE_Y + 8;
-                    return (
-                      <circle
-                        key={m.id}
-                        cx={cx}
-                        cy={cy}
-                        r={3}
-                        fill={STATUS_COLORS[m.status] ?? STATUS_COLORS.available}
-                        stroke="#FFFFFF"
-                        strokeWidth={0.6}
-                      />
-                    );
-                  });
-                })}
-              </svg>
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
+            {/* Floor label — left of the floor, right-aligned */}
+            <g>
+              <rect
+                x={LABEL_LEFT_X}
+                y={labelAnchor.y - 10}
+                width={LABEL_W}
+                height={20}
+                rx={4}
+                fill={isHovered ? "#F1F5F9" : "#FFFFFF"}
+                stroke="#CBD5E1"
+                strokeWidth={1}
+              />
+              <text
+                x={LABEL_LEFT_X + LABEL_W - 6}
+                y={labelAnchor.y + 6}
+                textAnchor="end"
+                style={{ fontSize: 11, fontWeight: 600, fill: "#0F172A" }}
+              >
+                {f.label.replace("Floor ", "FLOOR ")}
+              </text>
+            </g>
+          </motion.g>
+        );
+      })}
+    </svg>
   );
 }
+

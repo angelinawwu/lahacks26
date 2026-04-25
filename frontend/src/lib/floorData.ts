@@ -86,7 +86,7 @@ function build(rs: R[]): RoomDef[] {
 
 export const FLOORS: FloorDef[] = [
   {
-    id: "A", label: "Floor A · Ground", wings: ["southwest", "central", "north", "orthopaedic", "merle_norman"],
+    id: "A", label: "Floor A", wings: ["southwest", "central", "north", "orthopaedic", "merle_norman"],
     rooms: build([
       ["southwest", 0, 4, "er", "Emergency Room"],
       ["southwest", 1, 4, "cashier", "Cashier"],

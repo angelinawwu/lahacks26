@@ -35,6 +35,7 @@ from routes.nurses import bp as nurses_bp  # noqa: E402
 from routes.patients import bp as patients_bp  # noqa: E402
 from routes.rooms import bp as rooms_bp  # noqa: E402
 from routes.pages import bp as pages_bp  # noqa: E402
+from routes.queue import bp as queue_bp  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,6 +70,7 @@ app.register_blueprint(nurses_bp)
 app.register_blueprint(patients_bp)
 app.register_blueprint(rooms_bp)
 app.register_blueprint(pages_bp)
+app.register_blueprint(queue_bp)
 
 
 # ---------------------------------------------------------------------------

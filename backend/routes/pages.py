@@ -41,6 +41,7 @@ def create_page():
       priority      — "P1" | "P2" | "P3" | "P4" (default "P2")
       room          — room identifier or name
       requested_by  — operator / nurse ID who requested the page
+      backup_doctors — list of backup doctor IDs for escalation
 
     Side effects:
       - Creates a page record in state.PAGES
@@ -59,6 +60,7 @@ def create_page():
     priority = body.get("priority", "P2")
     room = body.get("room")
     requested_by = body.get("requested_by")
+    backup_doctors = body.get("backup_doctors", [])
 
     page_id = uuid4().hex
     created_at = _now()
@@ -71,10 +73,12 @@ def create_page():
         "priority": priority,
         "room": room,
         "requested_by": requested_by,
+        "backup_doctors": backup_doctors,
         "status": "paging",
         "created_at": created_at,
         "responded_at": None,
         "outcome": None,
+        "escalation_history": [],
     }
     state.PAGES[page_id] = page
 

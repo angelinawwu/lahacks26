@@ -117,3 +117,28 @@ export interface StatusUpdatePayload {
   clinician_id: string;
   status: ClinicianStatus;
 }
+
+// --------------------------------------------------------------------------- //
+// Floor map props (UCLA Medical Center, Santa Monica)                         //
+// --------------------------------------------------------------------------- //
+import type { FloorId, WingId } from "./floorData";
+
+export type ClinicianPin = {
+  id: string;
+  name: string;
+  floor: FloorId;
+  wing: WingId;
+  zone: string;
+  status: "available" | "paging" | "in_procedure" | "on_case" | "off_shift";
+  on_call: boolean;
+  page_count_1hr: number;
+  active_cases: number;
+};
+
+export type ActiveAlert = {
+  alert_id: string;
+  floor: FloorId;
+  wing: WingId;
+  zone: string;
+  priority: "P1" | "P2" | "P3" | "P4";
+};

@@ -7,11 +7,16 @@ import { CasesTable } from "@/components/CasesTable";
 import { CountBadge } from "@/components/badges";
 import { getSocket } from "@/lib/socket";
 import { getClinicians } from "@/lib/api";
+import { inferFloorWing } from "@/lib/floorData";
 import type {
+  ActiveAlert,
   AlertEvent,
+  ClinicianPin,
   ClinicianRecord,
+  ClinicianStatus,
   ClinicianStatusChanged,
   OperatorSnapshot,
+  PriorityLevel,
 } from "@/lib/types";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
@@ -70,10 +75,40 @@ export default function OperatorPage() {
   }, []);
 
   const liveCount = useMemo(() => alerts.filter(isAlertLive).length, [alerts]);
-  const activeP1Room = useMemo(() => {
-    const live = alerts.find((a) => a.priority === "P1" && isAlertLive(a));
-    return live?.room ?? null;
-  }, [alerts]);
+
+  const clinicianPins: ClinicianPin[] = useMemo(
+    () =>
+      clinicians.map((c) => {
+        const { floor, wing } = inferFloorWing(c.zone);
+        return {
+          id: c.id,
+          name: c.name,
+          floor,
+          wing,
+          zone: c.zone,
+          status: (c.status as ClinicianStatus) ?? "available",
+          on_call: c.on_call,
+          page_count_1hr: c.page_count_1hr,
+          active_cases: c.active_cases,
+        };
+      }),
+    [clinicians],
+  );
+
+  const activeAlerts: ActiveAlert[] = useMemo(
+    () =>
+      alerts.filter(isAlertLive).map((a) => {
+        const { floor, wing } = inferFloorWing(a.room);
+        return {
+          alert_id: a.alert_id,
+          floor,
+          wing,
+          zone: a.room ?? "",
+          priority: (a.priority as PriorityLevel) ?? "P3",
+        };
+      }),
+    [alerts],
+  );
 
   return (
     <div
@@ -91,7 +126,7 @@ export default function OperatorPage() {
         <span style={{ fontSize: 15, fontWeight: 500 }}>MedPage — Operator</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
-            Memorial Hospital · Floor 3
+            UCLA Medical Center · Santa Monica
           </span>
           <button
             type="button"
@@ -128,7 +163,11 @@ export default function OperatorPage() {
             height: "calc(100vh - 92px)",
           }}
         >
-          <FloorMap clinicians={clinicians} activeAlertRoom={activeP1Room} />
+          <FloorMap
+            clinicians={clinicianPins}
+            alerts={activeAlerts}
+            onClinicianClick={(id) => console.log("clinician clicked", id)}
+          />
           <div style={{ borderLeft: HAIRLINE }}>
             <AlertFeed alerts={alerts} />
           </div>

@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* MedPage design tokens (from operator dashboard mockup) */
+  --color-text-primary: #111418;
+  --color-text-secondary: #5a6470;
+  --color-text-tertiary: #8a94a0;
+  --color-text-info: #0c447c;
+  --color-text-danger: #b23a38;
+
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f4f5f7;
+  --color-background-tertiary: #fafbfc;
+  --color-background-info: #e1ecf8;
+
+  --color-border-tertiary: #e5e7eb;
+  --color-border-secondary: #d1d5db;
+  --color-border-info: #b6cfea;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+/* Pulsing P1 room highlight for the floor map */
+@keyframes medpage-pulse {
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(1.18); }
+}
+.medpage-pulse {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: medpage-pulse 1.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+/* Subtle entrance for the clinician active page card */
+@keyframes medpage-card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.medpage-card-in {
+  animation: medpage-card-in 220ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .medpage-pulse,
+  .medpage-card-in {
+    animation: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

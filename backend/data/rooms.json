@@ -1,0 +1,262 @@
+[
+  {
+    "id": "room_101",
+    "name": "ED Bay 1",
+    "floor": 1,
+    "type": "ed",
+    "capacity": 1,
+    "current_patient_id": "patient_008",
+    "x": 1,
+    "y": 1
+  },
+  {
+    "id": "room_102",
+    "name": "ED Bay 2",
+    "floor": 1,
+    "type": "ed",
+    "capacity": 1,
+    "current_patient_id": "patient_003",
+    "x": 2,
+    "y": 1
+  },
+  {
+    "id": "room_103",
+    "name": "ED Bay 3",
+    "floor": 1,
+    "type": "ed",
+    "capacity": 1,
+    "current_patient_id": "patient_012",
+    "x": 3,
+    "y": 1
+  },
+  {
+    "id": "room_104",
+    "name": "ED Bay 4",
+    "floor": 1,
+    "type": "ed",
+    "capacity": 1,
+    "current_patient_id": null,
+    "x": 4,
+    "y": 1
+  },
+  {
+    "id": "ed_station",
+    "name": "ED Nurses Station",
+    "floor": 1,
+    "type": "nurses_station",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 2,
+    "y": 2
+  },
+  {
+    "id": "trauma_bay",
+    "name": "Trauma Bay",
+    "floor": 1,
+    "type": "ed",
+    "capacity": 2,
+    "current_patient_id": null,
+    "x": 5,
+    "y": 1
+  },
+  {
+    "id": "room_icu_a",
+    "name": "ICU Room A",
+    "floor": 2,
+    "type": "icu",
+    "capacity": 1,
+    "current_patient_id": "patient_002",
+    "x": 1,
+    "y": 1
+  },
+  {
+    "id": "room_icu_b",
+    "name": "ICU Room B",
+    "floor": 2,
+    "type": "icu",
+    "capacity": 1,
+    "current_patient_id": "patient_006",
+    "x": 2,
+    "y": 1
+  },
+  {
+    "id": "room_icu_c",
+    "name": "ICU Room C",
+    "floor": 2,
+    "type": "icu",
+    "capacity": 1,
+    "current_patient_id": null,
+    "x": 3,
+    "y": 1
+  },
+  {
+    "id": "icu_station",
+    "name": "ICU Nurses Station",
+    "floor": 2,
+    "type": "nurses_station",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 2,
+    "y": 2
+  },
+  {
+    "id": "or_1",
+    "name": "Operating Room 1",
+    "floor": 2,
+    "type": "or",
+    "capacity": 1,
+    "current_patient_id": null,
+    "x": 5,
+    "y": 1
+  },
+  {
+    "id": "or_2",
+    "name": "Operating Room 2",
+    "floor": 2,
+    "type": "or",
+    "capacity": 1,
+    "current_patient_id": null,
+    "x": 6,
+    "y": 1
+  },
+  {
+    "id": "or_prep",
+    "name": "OR Prep / Recovery",
+    "floor": 2,
+    "type": "or",
+    "capacity": 4,
+    "current_patient_id": null,
+    "x": 5,
+    "y": 2
+  },
+  {
+    "id": "room_201",
+    "name": "Room 201",
+    "floor": 2,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_001",
+    "x": 1,
+    "y": 4
+  },
+  {
+    "id": "room_208",
+    "name": "Room 208",
+    "floor": 2,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_010",
+    "x": 2,
+    "y": 4
+  },
+  {
+    "id": "room_214",
+    "name": "Room 214",
+    "floor": 2,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_005",
+    "x": 3,
+    "y": 4
+  },
+  {
+    "id": "nurses_station_2",
+    "name": "Floor 2 Nurses Station",
+    "floor": 2,
+    "type": "nurses_station",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 4,
+    "y": 3
+  },
+  {
+    "id": "break_room_2",
+    "name": "Floor 2 Break Room",
+    "floor": 2,
+    "type": "break_room",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 6,
+    "y": 3
+  },
+  {
+    "id": "floor_2_corridor",
+    "name": "Floor 2 Corridor",
+    "floor": 2,
+    "type": "corridor",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 3,
+    "y": 3
+  },
+  {
+    "id": "room_301",
+    "name": "Room 301",
+    "floor": 3,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_007",
+    "x": 1,
+    "y": 1
+  },
+  {
+    "id": "room_302",
+    "name": "Room 302",
+    "floor": 3,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_011",
+    "x": 2,
+    "y": 1
+  },
+  {
+    "id": "room_305",
+    "name": "Room 305",
+    "floor": 3,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_004",
+    "x": 3,
+    "y": 1
+  },
+  {
+    "id": "room_310",
+    "name": "Room 310",
+    "floor": 3,
+    "type": "ward",
+    "capacity": 1,
+    "current_patient_id": "patient_009",
+    "x": 4,
+    "y": 1
+  },
+  {
+    "id": "nurses_station_3",
+    "name": "Floor 3 Nurses Station",
+    "floor": 3,
+    "type": "nurses_station",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 3,
+    "y": 2
+  },
+  {
+    "id": "break_room_1",
+    "name": "Floor 3 Break Room",
+    "floor": 3,
+    "type": "break_room",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 5,
+    "y": 2
+  },
+  {
+    "id": "floor_3_corridor",
+    "name": "Floor 3 Corridor",
+    "floor": 3,
+    "type": "corridor",
+    "capacity": 0,
+    "current_patient_id": null,
+    "x": 2,
+    "y": 2
+  }
+]

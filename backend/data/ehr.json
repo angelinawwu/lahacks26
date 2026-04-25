@@ -1,0 +1,338 @@
+{
+  "patient_001": {
+    "diagnoses": [
+      {"code": "I21.9", "description": "Acute myocardial infarction, unspecified", "date": "2026-04-24"},
+      {"code": "I10", "description": "Essential hypertension", "date": "2022-01-10"},
+      {"code": "E11.9", "description": "Type 2 diabetes mellitus without complications", "date": "2019-06-01"}
+    ],
+    "medications": [
+      {"name": "Aspirin", "dose": "325mg", "route": "PO", "frequency": "daily"},
+      {"name": "Heparin drip", "dose": "1200 units/hr", "route": "IV", "frequency": "continuous"},
+      {"name": "Nitroglycerin", "dose": "0.4mg SL PRN", "route": "SL", "frequency": "PRN chest pain"},
+      {"name": "Metoprolol", "dose": "25mg", "route": "PO", "frequency": "BID"},
+      {"name": "Atorvastatin", "dose": "80mg", "route": "PO", "frequency": "nightly"}
+    ],
+    "allergies": ["Penicillin — rash", "Sulfa — anaphylaxis"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 98, "bp": "158/96", "spo2": 95, "temp": 98.8, "rr": 18},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 92, "bp": "148/90", "spo2": 96, "temp": 98.6, "rr": 16},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 88, "bp": "140/88", "spo2": 97, "temp": 98.4, "rr": 16}
+    ],
+    "labs": [
+      {"name": "Troponin I", "value": "0.42 ng/mL", "timestamp": "2026-04-24T22:00:00Z", "flag": "CRITICAL HIGH"},
+      {"name": "Troponin I", "value": "0.21 ng/mL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "BMP — Creatinine", "value": "1.2 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": ""},
+      {"name": "BMP — Glucose", "value": "198 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-24T23:00:00Z", "author": "Dr. Sarah Chen", "text": "Patient presented with crushing substernal chest pain radiating to left arm x 3hrs. EKG showed ST depressions V4-V6. Troponin critical. Starting heparin, cardiology consult requested for catheterization."},
+      {"timestamp": "2026-04-25T09:00:00Z", "author": "Dr. Sarah Chen", "text": "Troponin trending down. Patient hemodynamically stable. Scheduled for cath lab tomorrow AM if trend continues."}
+    ]
+  },
+  "patient_002": {
+    "diagnoses": [
+      {"code": "A41.9", "description": "Sepsis, unspecified organism", "date": "2026-04-22"},
+      {"code": "N17.9", "description": "Acute kidney failure, unspecified", "date": "2026-04-22"},
+      {"code": "J18.9", "description": "Pneumonia, unspecified organism", "date": "2026-04-22"}
+    ],
+    "medications": [
+      {"name": "Vancomycin", "dose": "1g q12h (renally dosed)", "route": "IV", "frequency": "q12h"},
+      {"name": "Piperacillin-Tazobactam", "dose": "3.375g", "route": "IV", "frequency": "q6h"},
+      {"name": "Norepinephrine", "dose": "0.08 mcg/kg/min", "route": "IV", "frequency": "continuous"},
+      {"name": "Vasopressin", "dose": "0.03 units/min", "route": "IV", "frequency": "continuous"},
+      {"name": "Hydrocortisone", "dose": "50mg", "route": "IV", "frequency": "q6h"}
+    ],
+    "allergies": ["Codeine — nausea/vomiting", "Contrast dye — hives (pre-medicate)"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 118, "bp": "78/48", "spo2": 89, "temp": 101.8, "rr": 28},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 112, "bp": "86/54", "spo2": 92, "temp": 101.2, "rr": 24},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 108, "bp": "90/60", "spo2": 93, "temp": 100.6, "rr": 22}
+    ],
+    "labs": [
+      {"name": "Lactate", "value": "4.8 mmol/L", "timestamp": "2026-04-25T06:00:00Z", "flag": "CRITICAL HIGH"},
+      {"name": "WBC", "value": "22.4 K/uL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "Creatinine", "value": "3.8 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "CRITICAL HIGH"},
+      {"name": "Procalcitonin", "value": "48.2 ng/mL", "timestamp": "2026-04-25T06:00:00Z", "flag": "CRITICAL HIGH"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-22T14:00:00Z", "author": "Dr. Yuki Nakamura", "text": "Transferred from ED with septic shock secondary to pneumonia. On vasopressors, intubated. SOFA score 14. Family meeting held — full code per family decision."},
+      {"timestamp": "2026-04-25T08:00:00Z", "author": "Dr. Yuki Nakamura", "text": "Marginal improvement on vasopressor requirements overnight. Renal function worsening — nephrology consulted, CRRT discussion pending. Repeat cultures sent."}
+    ]
+  },
+  "patient_003": {
+    "diagnoses": [
+      {"code": "K35.80", "description": "Acute appendicitis without abscess", "date": "2026-04-25"},
+      {"code": "Z87.891", "description": "Personal history of nicotine dependence", "date": "2015-03-01"}
+    ],
+    "medications": [
+      {"name": "Ketorolac", "dose": "30mg", "route": "IV", "frequency": "q6h PRN pain"},
+      {"name": "Ondansetron", "dose": "4mg", "route": "IV", "frequency": "q6h PRN nausea"},
+      {"name": "Cefoxitin", "dose": "2g", "route": "IV", "frequency": "q6h"},
+      {"name": "NS at 125 mL/hr", "dose": "125 mL/hr", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["NKDA"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T10:00:00Z", "hr": 104, "bp": "128/76", "spo2": 98, "temp": 100.2, "rr": 18},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 98, "bp": "124/74", "spo2": 99, "temp": 99.8, "rr": 16}
+    ],
+    "labs": [
+      {"name": "WBC", "value": "16.8 K/uL", "timestamp": "2026-04-25T10:00:00Z", "flag": "HIGH"},
+      {"name": "Lipase", "value": "42 U/L", "timestamp": "2026-04-25T10:00:00Z", "flag": ""},
+      {"name": "CT Abdomen", "value": "Acute appendicitis, no perforation, no abscess", "timestamp": "2026-04-25T11:00:00Z", "flag": "ABNORMAL"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-25T10:30:00Z", "author": "Dr. Carlos Torres", "text": "CT confirmed acute appendicitis. Scheduled for laparoscopic appendectomy tonight. Pre-op orders placed, anesthesia notified. Patient NPO."}
+    ]
+  },
+  "patient_004": {
+    "diagnoses": [
+      {"code": "J44.1", "description": "Chronic obstructive pulmonary disease with acute exacerbation", "date": "2026-04-23"},
+      {"code": "J44.0", "description": "COPD with acute lower respiratory infection", "date": "2026-04-23"},
+      {"code": "I50.9", "description": "Heart failure, unspecified", "date": "2021-04-15"}
+    ],
+    "medications": [
+      {"name": "Albuterol-Ipratropium nebulizer", "dose": "2.5mg/0.5mg", "route": "INH", "frequency": "q4h"},
+      {"name": "Methylprednisolone", "dose": "125mg", "route": "IV", "frequency": "q6h x3 days then taper"},
+      {"name": "Azithromycin", "dose": "500mg", "route": "PO", "frequency": "daily x5 days"},
+      {"name": "Furosemide", "dose": "40mg", "route": "IV", "frequency": "BID"},
+      {"name": "Oxygen", "dose": "2L", "route": "NC", "frequency": "continuous — titrate to SpO2 88-92%"}
+    ],
+    "allergies": ["Aspirin — bronchospasm"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 96, "bp": "136/82", "spo2": 87, "temp": 99.4, "rr": 24},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 92, "bp": "132/80", "spo2": 90, "temp": 99.0, "rr": 22},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 88, "bp": "128/78", "spo2": 91, "temp": 98.8, "rr": 20}
+    ],
+    "labs": [
+      {"name": "ABG pH", "value": "7.31", "timestamp": "2026-04-25T06:00:00Z", "flag": "LOW"},
+      {"name": "ABG pCO2", "value": "62 mmHg", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "BNP", "value": "980 pg/mL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-23T15:00:00Z", "author": "Dr. Yuki Nakamura", "text": "Patient with severe COPD GOLD stage IV, admitted for acute-on-chronic exacerbation. DNR/DNI per patient's advance directive. Comfort-focused aggressive medical management. Family informed."},
+      {"timestamp": "2026-04-25T09:30:00Z", "author": "Dr. Yuki Nakamura", "text": "Mild improvement in oxygenation, pCO2 still elevated but patient more comfortable. Continue current regimen."}
+    ]
+  },
+  "patient_005": {
+    "diagnoses": [
+      {"code": "N17.9", "description": "Acute kidney injury", "date": "2026-04-24"},
+      {"code": "I16.0", "description": "Hypertensive urgency", "date": "2026-04-24"},
+      {"code": "I12.9", "description": "Hypertensive chronic kidney disease", "date": "2020-11-01"}
+    ],
+    "medications": [
+      {"name": "Labetalol", "dose": "200mg", "route": "PO", "frequency": "BID"},
+      {"name": "Amlodipine", "dose": "10mg", "route": "PO", "frequency": "daily"},
+      {"name": "NS at 100 mL/hr", "dose": "100 mL/hr", "route": "IV", "frequency": "continuous"},
+      {"name": "Sodium bicarbonate", "dose": "150 mEq in 1L D5W", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["Lisinopril — angioedema"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 88, "bp": "196/114", "spo2": 97, "temp": 98.6, "rr": 16},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 82, "bp": "178/102", "spo2": 98, "temp": 98.4, "rr": 16},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 78, "bp": "164/96", "spo2": 98, "temp": 98.4, "rr": 14}
+    ],
+    "labs": [
+      {"name": "Creatinine", "value": "3.1 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "BUN", "value": "58 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "Potassium", "value": "5.6 mEq/L", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "Urinalysis", "value": "Protein 3+, RBC casts present", "timestamp": "2026-04-25T07:00:00Z", "flag": "ABNORMAL"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-24T20:00:00Z", "author": "Dr. Fatima Hassan", "text": "Patient with history of CKD stage 3, presenting with AKI on CKD in setting of missed medications and hypertensive urgency. BP now trending down. Monitoring electrolytes closely. Nephrology following."}
+    ]
+  },
+  "patient_006": {
+    "diagnoses": [
+      {"code": "I63.50", "description": "Cerebral infarction due to unspecified occlusion of cerebral artery", "date": "2026-04-25"},
+      {"code": "I48.91", "description": "Unspecified atrial fibrillation", "date": "2023-09-12"}
+    ],
+    "medications": [
+      {"name": "tPA (alteplase)", "dose": "0.9 mg/kg IV (max 90mg)", "route": "IV", "frequency": "one-time — given in ED"},
+      {"name": "Heparin drip", "dose": "per stroke protocol", "route": "IV", "frequency": "continuous"},
+      {"name": "Aspirin", "dose": "325mg", "route": "PO", "frequency": "daily"},
+      {"name": "Atorvastatin", "dose": "80mg", "route": "PO", "frequency": "nightly"}
+    ],
+    "allergies": ["NKDA"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T08:00:00Z", "hr": 88, "bp": "182/100", "spo2": 96, "temp": 98.6, "rr": 16},
+      {"timestamp": "2026-04-25T10:00:00Z", "hr": 84, "bp": "174/96", "spo2": 97, "temp": 98.4, "rr": 16}
+    ],
+    "labs": [
+      {"name": "INR", "value": "1.1", "timestamp": "2026-04-25T07:00:00Z", "flag": ""},
+      {"name": "PTT", "value": "28 sec", "timestamp": "2026-04-25T07:00:00Z", "flag": ""},
+      {"name": "CT Head w/o contrast", "value": "No hemorrhage. Early ischemic changes R MCA territory.", "timestamp": "2026-04-25T07:30:00Z", "flag": "ABNORMAL"},
+      {"name": "MRI Brain DWI", "value": "Acute infarct R MCA distribution, large vessel occlusion M1 segment", "timestamp": "2026-04-25T09:00:00Z", "flag": "ABNORMAL"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-25T07:45:00Z", "author": "Dr. James Kim", "text": "Patient presented with sudden onset left hemiplegia, facial droop, aphasia. Within tPA window. Administered. Neurointerventional team evaluating for thrombectomy. Patient in ICU for monitoring."}
+    ]
+  },
+  "patient_007": {
+    "diagnoses": [
+      {"code": "I50.9", "description": "Heart failure with reduced ejection fraction (HFrEF)", "date": "2026-04-21"},
+      {"code": "I10", "description": "Essential hypertension", "date": "2018-03-15"},
+      {"code": "E11.9", "description": "Type 2 diabetes mellitus", "date": "2016-07-20"}
+    ],
+    "medications": [
+      {"name": "Furosemide", "dose": "80mg", "route": "IV", "frequency": "BID"},
+      {"name": "Lisinopril", "dose": "10mg", "route": "PO", "frequency": "daily"},
+      {"name": "Carvedilol", "dose": "12.5mg", "route": "PO", "frequency": "BID"},
+      {"name": "Spironolactone", "dose": "25mg", "route": "PO", "frequency": "daily"},
+      {"name": "Insulin glargine", "dose": "20 units", "route": "SC", "frequency": "nightly"}
+    ],
+    "allergies": ["Sulfa — rash"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 78, "bp": "142/88", "spo2": 94, "temp": 98.2, "rr": 18},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 72, "bp": "134/82", "spo2": 95, "temp": 98.2, "rr": 16},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 70, "bp": "128/78", "spo2": 96, "temp": 98.2, "rr": 14}
+    ],
+    "labs": [
+      {"name": "BNP", "value": "1820 pg/mL", "timestamp": "2026-04-21T18:00:00Z", "flag": "CRITICAL HIGH"},
+      {"name": "BNP", "value": "640 pg/mL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "Sodium", "value": "134 mEq/L", "timestamp": "2026-04-25T06:00:00Z", "flag": "LOW"},
+      {"name": "Creatinine", "value": "1.4 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": ""}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-21T19:00:00Z", "author": "Dr. Miguel Rodriguez", "text": "Patient with known HFrEF EF 25%, admitted for decompensation. 3-pillow orthopnea, bilateral lower extremity edema to knees. Starting aggressive diuresis. Echo ordered."},
+      {"timestamp": "2026-04-25T09:00:00Z", "author": "Dr. Miguel Rodriguez", "text": "BNP trending down nicely. Net negative 4.2L since admission. Patient feeling better, ambulating with PT. Plan for discharge in 1-2 days if continues to improve."}
+    ]
+  },
+  "patient_008": {
+    "diagnoses": [
+      {"code": "S22.39XA", "description": "Fracture of one rib, unspecified side, initial encounter", "date": "2026-04-25"},
+      {"code": "J93.9", "description": "Pneumothorax, unspecified", "date": "2026-04-25"},
+      {"code": "V49.9XXA", "description": "Motor vehicle accident", "date": "2026-04-25"}
+    ],
+    "medications": [
+      {"name": "Morphine", "dose": "4mg q4h PRN", "route": "IV", "frequency": "PRN pain"},
+      {"name": "Ketorolac", "dose": "15mg", "route": "IV", "frequency": "q6h"},
+      {"name": "Cefazolin", "dose": "2g", "route": "IV", "frequency": "q8h"},
+      {"name": "NS at 125 mL/hr", "dose": "125 mL/hr", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["NKDA"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T11:00:00Z", "hr": 112, "bp": "108/64", "spo2": 93, "temp": 98.6, "rr": 22},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 104, "bp": "116/70", "spo2": 95, "temp": 98.6, "rr": 20}
+    ],
+    "labs": [
+      {"name": "CXR", "value": "Right pneumothorax ~20%, 5 rib fractures R side, no hemothorax", "timestamp": "2026-04-25T11:00:00Z", "flag": "ABNORMAL"},
+      {"name": "Hgb", "value": "10.2 g/dL", "timestamp": "2026-04-25T11:00:00Z", "flag": "LOW"},
+      {"name": "Lipase", "value": "38 U/L", "timestamp": "2026-04-25T11:00:00Z", "flag": ""},
+      {"name": "FAST Ultrasound", "value": "No free fluid", "timestamp": "2026-04-25T11:10:00Z", "flag": ""}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-25T11:15:00Z", "author": "Dr. Priya Patel", "text": "Trauma activation for MVA. Primary survey intact. Pneumothorax 20% — monitoring conservatively, O2 via NC. Pain controlled. Surgery and pulm notified. Repeat CXR in 4hrs."}
+    ]
+  },
+  "patient_009": {
+    "diagnoses": [
+      {"code": "Z96.641", "description": "Presence of right artificial hip joint", "date": "2026-04-23"},
+      {"code": "M16.11", "description": "Primary osteoarthritis, right hip", "date": "2024-01-15"},
+      {"code": "I10", "description": "Essential hypertension", "date": "2019-06-10"}
+    ],
+    "medications": [
+      {"name": "Oxycodone", "dose": "5mg", "route": "PO", "frequency": "q4h PRN pain"},
+      {"name": "Aspirin", "dose": "81mg", "route": "PO", "frequency": "daily — DVT prophylaxis"},
+      {"name": "Enoxaparin", "dose": "40mg", "route": "SC", "frequency": "daily"},
+      {"name": "Amlodipine", "dose": "5mg", "route": "PO", "frequency": "daily"},
+      {"name": "Docusate", "dose": "100mg", "route": "PO", "frequency": "BID"}
+    ],
+    "allergies": ["Codeine — confusion, nausea"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 72, "bp": "128/76", "spo2": 97, "temp": 99.0, "rr": 14},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 70, "bp": "124/74", "spo2": 98, "temp": 98.8, "rr": 14}
+    ],
+    "labs": [
+      {"name": "Hgb", "value": "10.8 g/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "LOW"},
+      {"name": "Creatinine", "value": "1.0 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": ""},
+      {"name": "INR", "value": "1.2", "timestamp": "2026-04-25T06:00:00Z", "flag": ""}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-25T08:00:00Z", "author": "Dr. Carlos Torres", "text": "Post-op day 2 total right hip arthroplasty. Wound clean, dry. PT ambulated patient 30 feet with walker this morning. Pain 4/10. Anticipate discharge home with home PT in 1 day."}
+    ]
+  },
+  "patient_010": {
+    "diagnoses": [
+      {"code": "E10.10", "description": "Type 1 diabetes mellitus with ketoacidosis without coma", "date": "2026-04-24"},
+      {"code": "E10.9", "description": "Type 1 diabetes mellitus", "date": "2010-03-01"}
+    ],
+    "medications": [
+      {"name": "Insulin regular drip", "dose": "0.1 units/kg/hr", "route": "IV", "frequency": "continuous — per DKA protocol"},
+      {"name": "Potassium chloride", "dose": "20 mEq/hr", "route": "IV", "frequency": "continuous — repletion"},
+      {"name": "NS 0.9%", "dose": "1L/hr x2hrs then 250 mL/hr", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["Latex — hives", "Shellfish — anaphylaxis"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 116, "bp": "104/68", "spo2": 97, "temp": 98.8, "rr": 24},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 98, "bp": "114/72", "spo2": 98, "temp": 98.6, "rr": 20},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 88, "bp": "118/74", "spo2": 98, "temp": 98.4, "rr": 18}
+    ],
+    "labs": [
+      {"name": "Glucose", "value": "548 mg/dL", "timestamp": "2026-04-24T22:00:00Z", "flag": "CRITICAL HIGH"},
+      {"name": "Glucose", "value": "312 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"},
+      {"name": "Glucose", "value": "188 mg/dL", "timestamp": "2026-04-25T12:00:00Z", "flag": "HIGH"},
+      {"name": "pH", "value": "7.22", "timestamp": "2026-04-24T22:00:00Z", "flag": "CRITICAL LOW"},
+      {"name": "pH", "value": "7.34", "timestamp": "2026-04-25T12:00:00Z", "flag": "LOW"},
+      {"name": "Potassium", "value": "3.1 mEq/L", "timestamp": "2026-04-25T09:00:00Z", "flag": "LOW"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-24T22:30:00Z", "author": "Dr. Sean O'Connor", "text": "Patient with Type 1 DM presenting in DKA. pH 7.22, glucose 548, anion gap 28. Likely precipitant is URI — patient ill x3 days. Started IV insulin and aggressive IVF. Endocrine notified."},
+      {"timestamp": "2026-04-25T12:00:00Z", "author": "Dr. Sean O'Connor", "text": "Anion gap closing, glucose trending down. Transitioning insulin drip protocol. Anticipate subQ insulin restart this evening. Patient doing well."}
+    ]
+  },
+  "patient_011": {
+    "diagnoses": [
+      {"code": "K92.1", "description": "Melena", "date": "2026-04-24"},
+      {"code": "K25.4", "description": "Chronic gastric ulcer with hemorrhage", "date": "2026-04-24"},
+      {"code": "Z87.19", "description": "Personal history of H. pylori infection", "date": "2018-05-01"}
+    ],
+    "medications": [
+      {"name": "Pantoprazole", "dose": "80mg bolus then 8mg/hr", "route": "IV", "frequency": "continuous drip"},
+      {"name": "Octreotide", "dose": "50 mcg/hr", "route": "IV", "frequency": "continuous"},
+      {"name": "NS at 150 mL/hr", "dose": "150 mL/hr", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["Erythromycin — GI intolerance"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T06:00:00Z", "hr": 102, "bp": "104/62", "spo2": 98, "temp": 98.2, "rr": 16},
+      {"timestamp": "2026-04-25T09:00:00Z", "hr": 94, "bp": "112/68", "spo2": 98, "temp": 98.2, "rr": 16},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 88, "bp": "118/72", "spo2": 99, "temp": 98.2, "rr": 14}
+    ],
+    "labs": [
+      {"name": "Hgb", "value": "7.8 g/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "LOW"},
+      {"name": "Hgb", "value": "8.4 g/dL", "timestamp": "2026-04-25T12:00:00Z", "flag": "LOW"},
+      {"name": "INR", "value": "1.3", "timestamp": "2026-04-25T06:00:00Z", "flag": ""},
+      {"name": "BUN", "value": "42 mg/dL", "timestamp": "2026-04-25T06:00:00Z", "flag": "HIGH"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-24T21:00:00Z", "author": "Dr. Jennifer Lee", "text": "Patient with melena x2 days, hematemesis x1 today. Hgb 7.8, hemodynamically now stable after 2L IVF. GI consult for urgent EGD — scheduled for 7AM tomorrow. NPO after midnight. Blood type and screen sent."},
+      {"timestamp": "2026-04-25T12:00:00Z", "author": "Dr. Jennifer Lee", "text": "EGD this AM showed bleeding gastric ulcer, hemostasis achieved with epinephrine injection + cautery. Hgb stable at 8.4. Continuing PPI drip. Will transition to oral PPI tomorrow if stable."}
+    ]
+  },
+  "patient_012": {
+    "diagnoses": [
+      {"code": "T78.2XXA", "description": "Anaphylaxis, initial encounter", "date": "2026-04-25"},
+      {"code": "L50.0", "description": "Allergic urticaria", "date": "2026-04-25"}
+    ],
+    "medications": [
+      {"name": "Epinephrine 1:1000", "dose": "0.3mg IM — given in field", "route": "IM", "frequency": "one-time — given by EMS"},
+      {"name": "Diphenhydramine", "dose": "50mg", "route": "IV", "frequency": "q6h x24hrs"},
+      {"name": "Methylprednisolone", "dose": "125mg", "route": "IV", "frequency": "q6h x24hrs"},
+      {"name": "Famotidine", "dose": "20mg", "route": "IV", "frequency": "q12h"},
+      {"name": "NS at 125 mL/hr", "dose": "125 mL/hr", "route": "IV", "frequency": "continuous"}
+    ],
+    "allergies": ["Tree nuts — anaphylaxis (EpiPen prescribed)", "Shellfish — mild hives"],
+    "vitals_history": [
+      {"timestamp": "2026-04-25T10:00:00Z", "hr": 118, "bp": "86/52", "spo2": 92, "temp": 98.6, "rr": 24},
+      {"timestamp": "2026-04-25T11:00:00Z", "hr": 96, "bp": "108/68", "spo2": 97, "temp": 98.6, "rr": 18},
+      {"timestamp": "2026-04-25T12:00:00Z", "hr": 82, "bp": "118/74", "spo2": 99, "temp": 98.4, "rr": 14}
+    ],
+    "labs": [
+      {"name": "Tryptase", "value": "28.4 ng/mL", "timestamp": "2026-04-25T10:30:00Z", "flag": "HIGH"},
+      {"name": "WBC", "value": "12.2 K/uL", "timestamp": "2026-04-25T11:00:00Z", "flag": ""},
+      {"name": "Eosinophils", "value": "8%", "timestamp": "2026-04-25T11:00:00Z", "flag": "HIGH"}
+    ],
+    "notes": [
+      {"timestamp": "2026-04-25T10:15:00Z", "author": "Dr. Priya Patel", "text": "24F with known tree nut allergy, accidental exposure at restaurant. EMS gave epi x1 IM. Arrived with urticaria, angioedema, hypotension, bronchospasm. Responding well to epi + antihistamines + steroids. Will observe x12-24hrs for biphasic reaction. Allergy consult placed."}
+    ]
+  }
+}

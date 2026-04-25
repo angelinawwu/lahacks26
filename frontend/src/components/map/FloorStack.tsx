@@ -16,6 +16,15 @@ import type { ActiveAlert, ClinicianPin } from "@/lib/types";
 
 const EASE_OUT_QUART = [0.165, 0.84, 0.44, 1] as const;
 
+// Simple utility to darken a hex color by ~15% for hover.
+function darkenColor(hex: string): string {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const r = Math.max(0, ((num >> 16) & 255) - 30);
+  const g = Math.max(0, ((num >> 8) & 255) - 30);
+  const b = Math.max(0, (num & 255) - 30);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
 // Isometric projection (classic 2:1 dimetric).
 const ISO_ANGLE_X = (Math.PI / 180) * 30;
 const ISO_ANGLE_Y = (Math.PI / 180) * 30;
@@ -25,12 +34,12 @@ const COS_Y = Math.cos(ISO_ANGLE_Y);
 // Floor plan dimensions in plane-space, before iso projection.
 const PLANE_W = 380;
 const PLANE_H = 160;
-const LABEL_LEFT_X = 16;
+const LABEL_LEFT_X = 100;
 const LABEL_W = 82;
 // Vertical (z) gap between stacked floors.
 const FLOOR_GAP = 60;
 // Diagonal stagger per floor in screen-space (x shifts right as floors go up).
-const STAGGER_X = 22;
+const STAGGER_X = 80;
 
 const VIEW_W = 760;
 const VIEW_H = 580;
@@ -122,7 +131,7 @@ export function FloorStack({
         const fClinicians = clinicians.filter((c) => c.floor === f.id);
         const pulse = topPriority(fAlerts);
         const isHovered = hovered === f.id;
-        const labelAnchor = project(-PLANE_W / 2 - 8, -PLANE_H / 2, baseZ);
+        const labelAnchor = project(-PLANE_W / 2 - 8, -PLANE_H / 2 + 100, baseZ);
 
         return (
           <motion.g
@@ -146,7 +155,7 @@ export function FloorStack({
                 <path
                   key={wing}
                   d={wingPath(wing, baseZ)}
-                  fill={c.fill}
+                  fill={isHovered ? darkenColor(c.fill) : c.fill}
                   stroke={c.stroke}
                   strokeWidth={0.6}
                 />
@@ -217,9 +226,9 @@ export function FloorStack({
                 strokeWidth={1}
               />
               <text
-                x={LABEL_LEFT_X + LABEL_W - 6}
+                x={LABEL_LEFT_X + LABEL_W / 2}
                 y={labelAnchor.y + 6}
-                textAnchor="end"
+                textAnchor="middle"
                 style={{ fontSize: 11, fontWeight: 600, fill: "#0F172A" }}
               >
                 {f.label.replace("Floor ", "FLOOR ")}

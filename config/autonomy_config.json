@@ -1,0 +1,23 @@
+{
+  "global_mode": "review",
+  "zone_policies": {
+    "icu": { "mode": "review", "reason": "Critical care requires human oversight" },
+    "or_1": { "mode": "review", "reason": "Surgical emergencies need verification" },
+    "or_2": { "mode": "review", "reason": "Surgical emergencies need verification" },
+    "floor_3_corridor": { "mode": "autonomous", "reason": "Step-down unit lower risk" },
+    "nurses_station": { "mode": "autonomous", "reason": "General ward standard protocols" },
+    "break_room": { "mode": "autonomous", "reason": "Non-clinical area" },
+    "parking_garage": { "mode": "review", "reason": "Off-site clinician notification" }
+  },
+  "priority_policies": {
+    "P1": { "mode": "review", "reason": "Code/emergency always reviewed" },
+    "P2": { "mode": "autonomous", "reason": "Urgent but routine protocols ok" },
+    "P3": { "mode": "autonomous", "reason": "Important but not critical" },
+    "P4": { "mode": "autonomous", "reason": "Routine pages" }
+  },
+  "auto_dispatch_rules": {
+    "max_pages_per_hour": 3,
+    "require_on_call": true,
+    "allow_off_shift": false
+  }
+}

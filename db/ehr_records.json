@@ -1,0 +1,26 @@
+{
+  "_default": {
+    "1": {
+      "patient_id": "PT-2024-00412",
+      "name": "John Doe",
+      "room": "412",
+      "primary_diagnosis": "acute myocardial infarction",
+      "comorbidities": ["hypertension", "diabetes_type_2"],
+      "assigned_team": ["cardiology", "emergency_medicine"],
+      "primary_physician": "dr_chen",
+      "ehr_access_level": "full",
+      "last_updated": "2024-01-15T08:30:00Z"
+    },
+    "2": {
+      "patient_id": "PT-2024-00301",
+      "name": "Jane Smith",
+      "room": "301",
+      "primary_diagnosis": "ischemic stroke",
+      "comorbidities": ["atrial_fibrillation"],
+      "assigned_team": ["neurology", "internal_medicine"],
+      "primary_physician": "dr_kim",
+      "ehr_access_level": "full",
+      "last_updated": "2024-01-15T09:15:00Z"
+    }
+  }
+}

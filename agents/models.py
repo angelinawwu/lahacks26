@@ -74,6 +74,53 @@ class CaseResponse(Model):
 
 
 # ---------------------------------------------------------------------------
+# Autonomy Configuration
+# ---------------------------------------------------------------------------
+class ZonePolicy(Model):
+    mode: str  # "review" | "autonomous"
+    reason: str
+
+
+class AutonomyConfig(Model):
+    global_mode: str  # "review" | "autonomous"
+    zone_policies: Dict[str, ZonePolicy] = {}
+    priority_policies: Dict[str, ZonePolicy] = {}
+
+
+# ---------------------------------------------------------------------------
+# EHR and Patient Data
+# ---------------------------------------------------------------------------
+class EHRRecord(Model):
+    patient_id: str
+    name: str
+    room: str
+    primary_diagnosis: str
+    comorbidities: List[str] = []
+    assigned_team: List[str] = []
+    primary_physician: Optional[str] = None
+    ehr_access_level: str = "full"  # full | limited | emergency_only
+
+
+# ---------------------------------------------------------------------------
+# Clinician Schedule for Time-Queued Matching
+# ---------------------------------------------------------------------------
+class ScheduledProcedure(Model):
+    start: str  # ISO timestamp
+    end: str  # ISO timestamp
+    type: str
+    location: str
+
+
+class ClinicianSchedule(Model):
+    clinician_id: str
+    status: str  # available | in_procedure | off_shift
+    procedure_end_time: Optional[str] = None
+    next_available_eta: Optional[str] = None
+    scheduled_procedures: List[ScheduledProcedure] = []
+    shift_end: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Final dispatch decision (Operator Agent output)
 # ---------------------------------------------------------------------------
 class DispatchDecision(Model):
@@ -87,7 +134,12 @@ class DispatchDecision(Model):
     selected_clinician_name: Optional[str] = None
     backup_clinician_ids: List[str] = []
     reasoning: str
-    mode: str = "rich"                            # "sparse" | "rich"
+    mode: str = "rich"
     needs_operator_review: bool = False
     guardrail_flags: List[str] = []
+    autonomy_mode: str = "review"  # which mode was applied
+    zone_policy_applied: Optional[str] = None  # reason if zone-specific policy triggered
+    ehr_matched: bool = False  # whether EHR data was used
+    time_queued: bool = False  # whether this is a delayed dispatch
+    estimated_dispatch_time: Optional[str] = None  # ISO timestamp if time-queued
     details: Dict[str, Any] = {}                  # any extra debug info

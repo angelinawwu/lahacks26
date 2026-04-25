@@ -1,0 +1,30 @@
+{
+  "_default": {
+    "1": {
+      "clinician_id": "dr_kim",
+      "status": "in_procedure",
+      "procedure_end_time": "2024-01-15T11:30:00Z",
+      "next_available_eta": "2024-01-15T12:00:00Z",
+      "scheduled_procedures": [
+        { "start": "2024-01-15T09:00:00Z", "end": "2024-01-15T11:30:00Z", "type": "craniotomy", "location": "or_1" }
+      ],
+      "shift_end": "2024-01-15T18:00:00Z"
+    },
+    "2": {
+      "clinician_id": "dr_gupta",
+      "status": "available",
+      "procedure_end_time": null,
+      "next_available_eta": "2024-01-15T10:00:00Z",
+      "scheduled_procedures": [],
+      "shift_end": "2024-01-15T19:00:00Z"
+    },
+    "3": {
+      "clinician_id": "dr_rodriguez",
+      "status": "available",
+      "procedure_end_time": null,
+      "next_available_eta": "2024-01-15T10:00:00Z",
+      "scheduled_procedures": [],
+      "shift_end": "2024-01-15T17:00:00Z"
+    }
+  }
+}

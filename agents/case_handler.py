@@ -94,6 +94,29 @@ SPECIALTY_EXPAND: Dict[str, List[str]] = {
 }
 
 
+def get_zone_from_room(room: str) -> str:
+    """Infer zone from room number pattern."""
+    if not room:
+        return "nurses_station"
+    room = room.lower().replace("room", "").replace("rm", "").replace("r", "").strip()
+    # Extract numeric part
+    digits = ''.join(c for c in room if c.isdigit())
+    if not digits:
+        return "nurses_station"
+    
+    floor = int(digits[0]) if digits else 1
+    
+    # Simple mapping: floor → zone
+    zone_map = {
+        1: "or_1",           # Floor 1: OR/ED
+        2: "nurses_station", # Floor 2: General wards
+        3: "icu",            # Floor 3: ICU
+        4: "floor_3_corridor", # Floor 4: Step-down/cardiac
+        5: "break_room",     # Floor 5: Admin/support
+    }
+    return zone_map.get(floor, "nurses_station")
+
+
 def get_travel_minutes(from_zone: str, to_zone: str) -> float:
     """Return estimated travel time between zones."""
     if from_zone == to_zone:

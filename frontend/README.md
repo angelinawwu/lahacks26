@@ -1,53 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MedPage Frontend
 
-## MedPage
+Next.js frontend for MedPage's realtime hospital alert workflow. This app provides:
 
-- `/` — original `MedPageConsole` quick-dispatch (REST only).
-- `/operator` — operator dashboard (desktop, realtime).
-- `/clinician?id=dr_chen` — clinician mobile view (realtime).
+- Clinician mobile experience (primary default)
+- Operator dashboard with floor map and active case feed
+- Shared Socket.IO + REST integration with the FastAPI backend
 
-The backend now serves REST + Socket.IO from the same port via the ASGI
-wrapper. Start it from the repo root with:
+## Routes
+
+- `/` -> redirects to `/clinician` (default experience)
+- `/clinician?id=dr_chen` -> clinician view
+- `/operator` -> operator dashboard
+
+## Prerequisites
+
+- Node.js 18+ (Node 20 recommended)
+- npm (or another package manager)
+- Backend running from the repository root
+
+## Backend (required)
+
+From the repository root:
 
 ```bash
 uvicorn api.main:asgi_app --reload --port 8000
 ```
 
-Copy `.env.local.example` to `.env.local` so the frontend can find both
-the REST API (`NEXT_PUBLIC_API_URL`) and the Socket.IO server
-(`NEXT_PUBLIC_SOCKET_URL`).
+The frontend expects REST and Socket.IO on the same base URL.
 
-## Getting Started
+## Environment Setup
 
-First, run the development server:
+In `frontend/`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Default values:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:8000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run Locally
 
-## Learn More
+In `frontend/`:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev` - Start local dev server
+- `npm run build` - Build for production
+- `npm run start` - Run production build
+- `npm run lint` - Run lint checks
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Troubleshooting
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- If realtime updates are missing, verify `NEXT_PUBLIC_SOCKET_URL`.
+- If API calls fail, verify `NEXT_PUBLIC_API_URL`.
+- If route data looks stale, restart both backend and frontend dev servers.

@@ -1,5 +1,5 @@
-import { MedPageConsole } from "@/components/MedPageConsole";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <MedPageConsole />;
+  redirect("/clinician");
 }

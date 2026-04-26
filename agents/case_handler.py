@@ -19,6 +19,7 @@ from tinydb import TinyDB, Query
 
 from agents.models import AlertMessage, PriorityResponse, CaseResponse, CandidateClinician
 from agents.asi_client import asi1_chat, extract_json
+from agents.hospital_graph import travel_minutes, room_to_zone
 
 load_dotenv()
 
@@ -35,27 +36,6 @@ agent = Agent(
     endpoint=[f"http://127.0.0.1:{PORT}/submit"],
 )
 
-# Zone travel time map (minutes) per WiFi-location requirement
-ZONE_TRAVEL_MINUTES: Dict[tuple[str, str], float] = {
-    ("floor_3_corridor", "icu"): 1,
-    ("nurses_station", "icu"): 2,
-    ("or_1", "icu"): 5,
-    ("or_2", "icu"): 5,
-    ("break_room", "icu"): 4,
-    ("floor_3_corridor", "nurses_station"): 2,
-    ("or_1", "nurses_station"): 6,
-    ("or_2", "nurses_station"): 6,
-    ("break_room", "nurses_station"): 3,
-    ("floor_3_corridor", "or_1"): 4,
-    ("icu", "or_1"): 5,
-    ("nurses_station", "or_1"): 6,
-    ("or_2", "or_1"): 2,
-    ("break_room", "or_1"): 5,
-    ("floor_3_corridor", "or_2"): 4,
-    ("icu", "or_2"): 5,
-    ("nurses_station", "or_2"): 6,
-    ("break_room", "or_2"): 5,
-}
 
 SYSTEM_PROMPT = """You are the Case Handler in a hospital paging system.
 
@@ -98,37 +78,10 @@ SPECIALTY_EXPAND: Dict[str, List[str]] = {
 
 
 def get_zone_from_room(room: str) -> str:
-    """Infer zone from room number pattern."""
+    """Resolve a room identifier to a zone string using the hospital graph."""
     if not room:
         return "nurses_station"
-    room = room.lower().replace("room", "").replace("rm", "").replace("r", "").strip()
-    # Extract numeric part
-    digits = ''.join(c for c in room if c.isdigit())
-    if not digits:
-        return "nurses_station"
-    
-    floor = int(digits[0]) if digits else 1
-    
-    # Simple mapping: floor → zone
-    zone_map = {
-        1: "or_1",           # Floor 1: OR/ED
-        2: "nurses_station", # Floor 2: General wards
-        3: "icu",            # Floor 3: ICU
-        4: "floor_3_corridor", # Floor 4: Step-down/cardiac
-        5: "break_room",     # Floor 5: Admin/support
-    }
-    return zone_map.get(floor, "nurses_station")
-
-
-def get_travel_minutes(from_zone: str, to_zone: str) -> float:
-    """Return estimated travel time between zones."""
-    if from_zone == to_zone:
-        return 0.5
-    # Check both directions
-    minutes = ZONE_TRAVEL_MINUTES.get((from_zone, to_zone))
-    if minutes is None:
-        minutes = ZONE_TRAVEL_MINUTES.get((to_zone, from_zone))
-    return minutes if minutes is not None else 3.0
+    return room_to_zone(room.strip().lower())
 
 
 def build_specialty_query(alert: AlertMessage) -> List[str]:
@@ -182,8 +135,8 @@ def score_candidates(candidates: List[Dict], target_zone: str,
         # Base score
         score = 0.5
         
-        # Travel time penalty/bonus
-        travel = get_travel_minutes(c.get("zone", ""), target_zone)
+        # Travel time penalty/bonus (A* pathfinding)
+        travel = travel_minutes(c.get("zone", ""), target_zone)
         if travel <= 1:
             score += 0.25
         elif travel <= 3:
@@ -349,17 +302,7 @@ def process_case(
     """
     db = TinyDB(DB_PATH)
 
-    target_zone = alert.room.lower().replace(" ", "_") if alert.room else "nurses_station"
-    zone_map = {
-        "room_412": "floor_3_corridor",
-        "room_301": "icu",
-        "room_201": "nurses_station",
-        "or": "or_1",
-    }
-    for pattern, zone in zone_map.items():
-        if pattern in target_zone:
-            target_zone = zone
-            break
+    target_zone = get_zone_from_room(alert.room) if alert.room else "nurses_station"
 
     specialties = build_specialty_query(alert)
     _log.info(f"[case_handler] querying specialties: {specialties}, target_zone: {target_zone}")

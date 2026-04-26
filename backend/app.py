@@ -45,6 +45,7 @@ from routes.ehr import bp as ehr_bp  # noqa: E402
 from routes.clinician_queue import bp as clinician_queue_bp  # noqa: E402
 from routes.paging_modes import bp as paging_modes_bp  # noqa: E402
 from routes.settings import bp as settings_bp  # noqa: E402
+from routes.pathfinding import bp as pathfinding_bp  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,6 +87,7 @@ app.register_blueprint(ehr_bp)
 app.register_blueprint(clinician_queue_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(paging_modes_bp)
+app.register_blueprint(pathfinding_bp)
 
 # Seed at import time so Gunicorn workers have data without __main__ running
 state.seed()

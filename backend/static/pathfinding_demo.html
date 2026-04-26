@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedPage — Pathfinding Demo</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0f172a; color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+    .header-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .live-dot {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: #1d9e75; margin-right: 5px;
+      animation: blink 2s ease infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .floors {
+      display: flex; gap: 4px;
+      padding: 8px 16px; border-bottom: 1px solid #1e293b; flex-shrink: 0;
+    }
+    .floor-btn {
+      padding: 4px 12px; border-radius: 999px;
+      border: 1px solid #334155; background: transparent;
+      color: #94a3b8; cursor: pointer; font-size: 12px; font-weight: 500;
+      transition: all 140ms;
+    }
+    .floor-btn:hover { border-color: #475569; color: #e2e8f0; }
+    .floor-btn.active { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+    .floor-btn.has-path { border-color: #4f46e5; color: #a5b4fc; }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    .map-wrap {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 12px; background: #080f1a; overflow: hidden;
+    }
+    #map { width: 100%; height: 100%; max-height: calc(100vh - 130px); }
+    .sidebar {
+      width: 272px; border-left: 1px solid #1e293b;
+      display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+    }
+    .section { padding: 14px 16px; border-bottom: 1px solid #1e293b; }
+    .sec-label {
+      font-size: 10px; font-weight: 600; color: #64748b;
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 9px;
+    }
+    select {
+      width: 100%; padding: 7px 10px;
+      background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+      color: #e2e8f0; font-size: 12px; margin-bottom: 8px; cursor: pointer;
+    }
+    select:focus { outline: 1px solid #3b82f6; border-color: #3b82f6; }
+    .btn {
+      width: 100%; padding: 9px; border: none; border-radius: 6px;
+      font-size: 13px; font-weight: 500; cursor: pointer; transition: background 140ms;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #1e3a5f; color: #60a5fa; cursor: wait; }
+    .result-card {
+      background: #0d1f36; border: 1px solid #1e3a5f;
+      border-radius: 8px; padding: 12px; margin-top: 2px;
+    }
+    .dr-name { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+    .dr-spec { font-size: 11px; color: #60a5fa; margin: 2px 0 8px; }
+    .info-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 11px; padding: 2px 0;
+    }
+    .info-row .lbl { color: #64748b; }
+    .info-row .val { color: #e2e8f0; font-weight: 500; }
+    .eta-pill {
+      display: inline-block; margin-top: 9px;
+      padding: 3px 10px; border-radius: 4px;
+      background: #0c2a4a; border: 1px solid #3b82f6;
+      color: #93c5fd; font-size: 12px; font-weight: 700;
+    }
+    .path-trace {
+      margin-top: 9px; font-size: 10px; color: #475569; line-height: 1.7;
+    }
+    .path-trace .z { color: #7dd3fc; }
+    .doc-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid #1e293b; font-size: 11px;
+    }
+    .doc-item:last-child { border-bottom: none; }
+    .sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .doc-item .dn { color: #cbd5e1; flex: 1; }
+    .doc-item .dz { color: #475569; font-size: 10px; }
+    .doc-item .assigned-badge {
+      font-size: 9px; padding: 1px 5px; border-radius: 3px;
+      background: #1e3a5f; color: #60a5fa; font-weight: 600;
+    }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      padding: 10px 16px; border-top: 1px solid #1e293b; margin-top: auto;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #64748b; }
+    .ldot { width: 7px; height: 7px; border-radius: 50%; }
+    .empty-floor { color: #334155; font-size: 11px; padding: 4px 0; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <span class="header-title">MedPage</span>
+    <span style="color:#334155;margin:0 8px">—</span>
+    <span style="color:#64748b">A* Pathfinding Demo</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <span style="color:#64748b;font-size:12px">UCLA Medical Center · Santa Monica</span>
+    <span style="font-size:11px;color:#64748b" id="conn-label">
+      <span class="live-dot" style="background:#ef4444"></span>connecting…
+    </span>
+  </div>
+</div>
+
+<div class="floors" id="floor-tabs"></div>
+
+<div class="main">
+  <div class="map-wrap">
+    <svg id="map" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+  <div class="sidebar">
+
+    <div class="section">
+      <div class="sec-label">Patient Location</div>
+      <select id="sel-zone">
+        <option value="floor_3_corridor">Floor 3 — Corridor</option>
+        <option value="icu">Floor 4 — ICU</option>
+        <option value="er">Floor A — Emergency Room</option>
+        <option value="or_1">Floor 3 — OR 1</option>
+        <option value="picu">Floor 4 — PICU</option>
+        <option value="nicu">Floor 2 — NICU</option>
+        <option value="labor_delivery">Floor 2 — Labor & Delivery</option>
+        <option value="radiology">Floor 2 — Radiology</option>
+        <option value="floor_4_corridor">Floor 4 — Corridor</option>
+        <option value="pediatric_unit">Floor 6 — Pediatric Unit</option>
+        <option value="imcu">Floor 5 — IMCU</option>
+        <option value="geriatric_unit">Floor 5 — Geriatric Unit</option>
+        <option value="admissions">Floor A — Admissions</option>
+      </select>
+      <div class="sec-label" style="margin-top:2px">Required Specialty</div>
+      <select id="sel-spec">
+        <option value="cardiology">Cardiology</option>
+        <option value="emergency_medicine">Emergency Medicine</option>
+        <option value="trauma">Trauma</option>
+        <option value="neurology">Neurology</option>
+        <option value="surgery">Surgery</option>
+        <option value="anesthesiology">Anesthesiology</option>
+        <option value="internal_medicine">Internal Medicine</option>
+        <option value="pediatrics">Pediatrics</option>
+        <option value="oncology">Oncology</option>
+        <option value="neonatology">Neonatology</option>
+        <option value="radiology">Radiology</option>
+        <option value="obstetrics">Obstetrics</option>
+        <option value="pulmonology">Pulmonology</option>
+        <option value="nephrology">Nephrology</option>
+      </select>
+      <button class="btn btn-primary" id="dispatch-btn" onclick="runDispatch()">
+        ⚡ Run Dispatch
+      </button>
+    </div>
+
+    <div class="section" id="result-section" style="display:none">
+      <div class="sec-label">Assigned Doctor</div>
+      <div class="result-card" id="result-card"></div>
+    </div>
+
+    <div class="section" style="flex:1">
+      <div class="sec-label">Doctors on Floor <span id="floor-label-inline">3</span></div>
+      <div id="doc-list"></div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="ldot" style="background:#1d9e75"></div>Available</div>
+      <div class="legend-item"><div class="ldot" style="background:#378add"></div>Paging</div>
+      <div class="legend-item"><div class="ldot" style="background:#7f77dd"></div>In procedure</div>
+      <div class="legend-item"><div class="ldot" style="background:#ba7517"></div>On case</div>
+      <div class="legend-item"><div class="ldot" style="background:#6b7280"></div>Off shift</div>
+      <div class="legend-item"><div class="ldot" style="background:#ef4444"></div>Patient</div>
+      <div class="legend-item"><div class="ldot" style="background:#3b82f6"></div>A* path</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── Hospital layout constants (mirror floorData.ts) ────────────────────────
+const WINGS = {
+  southwest:    { x:  40, y: 160, w: 360, h: 380, fill: "#08121f", stroke: "#1a3050", label: "Southwest Wing" },
+  central:      { x: 400, y: 160, w: 260, h: 380, fill: "#0a0f1a", stroke: "#1f2d40", label: "Central Wing" },
+  north:        { x: 660, y: 240, w: 220, h: 300, fill: "#081510", stroke: "#163524", label: "North Wing" },
+  orthopaedic:  { x: 660, y:  40, w: 300, h: 200, fill: "#0e0a1a", stroke: "#2a1f45", label: "Orthopaedic Wing" },
+  merle_norman: { x:  80, y: 560, w: 300, h: 110, fill: "#120d06", stroke: "#3d2808", label: "Merle Norman Pavilion" },
+};
+
+const FLOOR_WINGS = {
+  0: ["southwest","central","north","orthopaedic","merle_norman"],
+  1: ["southwest","central"],
+  2: ["southwest","central","north","orthopaedic"],
+  3: ["southwest","central","north","orthopaedic"],
+  4: ["southwest","central","north","orthopaedic"],
+  5: ["central","north"],
+  6: ["north"],
+};
+
+const STATUS_COLORS = {
+  available: "#1D9E75", paging: "#378ADD", in_procedure: "#7F77DD",
+  on_case: "#BA7517", off_shift: "#6B7280", on_break: "#F59E0B",
+};
+
+const FLOOR_LABELS = ["A","1","2","3","4","5","6"];
+const FLOOR_LABEL_TO_Z = { A:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6 };
+
+// ─── App state ───────────────────────────────────────────────────────────────
+let liveDoc = [];       // live doctor records from socket
+let currentFloor = 3;   // floor_z currently shown
+let result = null;      // last dispatch result
+
+// ─── SVG helper ──────────────────────────────────────────────────────────────
+const NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs = {}) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+// ─── Socket.IO ───────────────────────────────────────────────────────────────
+const socket = io({ transports: ["websocket","polling"], auth: { role: "operator" } });
+
+socket.on("connect", () => setConn(true));
+socket.on("disconnect", () => setConn(false));
+
+socket.on("snapshot", data => {
+  if (Array.isArray(data?.doctors)) { liveDoc = data.doctors; refresh(); }
+});
+socket.on("doctor_status_changed", data => {
+  liveDoc = liveDoc.map(d => d.id === data.id ? { ...d, ...data } : d);
+  refresh();
+});
+
+function setConn(ok) {
+  const el = document.getElementById("conn-label");
+  el.innerHTML = ok
+    ? '<span class="live-dot"></span>live'
+    : '<span class="live-dot" style="background:#ef4444"></span>disconnected';
+}
+
+// Initial REST fetch (fallback if socket snapshot is slow)
+fetch("/api/doctors").then(r => r.json()).then(data => {
+  if (!liveDoc.length) { liveDoc = data; refresh(); }
+}).catch(() => {});
+
+// ─── Floor tabs ──────────────────────────────────────────────────────────────
+(function buildTabs() {
+  const c = document.getElementById("floor-tabs");
+  FLOOR_LABELS.forEach((lbl, z) => {
+    const b = document.createElement("button");
+    b.className = "floor-btn" + (z === currentFloor ? " active" : "");
+    b.textContent = lbl;
+    b.id = `ftab-${z}`;
+    b.onclick = () => { currentFloor = z; refreshTabs(); renderMap(); renderDocList(); };
+    c.appendChild(b);
+  });
+})();
+
+function refreshTabs() {
+  const pathFloors = new Set(result?.path_coords?.map(p => p.floor_z) ?? []);
+  document.getElementById("floor-label-inline").textContent = FLOOR_LABELS[currentFloor];
+  FLOOR_LABELS.forEach((_, z) => {
+    const b = document.getElementById(`ftab-${z}`);
+    b.className = "floor-btn"
+      + (z === currentFloor ? " active" : "")
+      + (pathFloors.has(z) && z !== currentFloor ? " has-path" : "");
+  });
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function refresh() { renderMap(); renderDocList(); }
+
+function renderMap() {
+  const svg = document.getElementById("map");
+  svg.innerHTML = "";
+
+  const wings = FLOOR_WINGS[currentFloor] ?? FLOOR_WINGS[3];
+
+  // Wing backgrounds
+  wings.forEach(wid => {
+    const w = WINGS[wid];
+    if (!w) return;
+    svg.appendChild(svgEl("rect", { x:w.x, y:w.y, width:w.w, height:w.h, fill:w.fill, stroke:w.stroke, "stroke-width":1.5 }));
+    const t = svgEl("text", { x:w.x+8, y:w.y+15 });
+    t.style.cssText = "font-size:10px;font-weight:600;fill:#2d3f55;pointer-events:none";
+    t.textContent = w.label;
+    svg.appendChild(t);
+  });
+
+  // Elevator hub
+  const eg = svgEl("g");
+  eg.appendChild(svgEl("rect", { x:511, y:150, width:40, height:20, rx:3, fill:"#111827", stroke:"#334155", "stroke-width":1 }));
+  const et = svgEl("text", { x:531, y:164, "text-anchor":"middle" });
+  et.style.cssText = "font-size:8px;fill:#475569;font-weight:700;pointer-events:none";
+  et.textContent = "ELEV";
+  eg.appendChild(et);
+  svg.appendChild(eg);
+
+  // Floor label
+  const fl = svgEl("text", { x:988, y:26, "text-anchor":"end" });
+  fl.style.cssText = "font-size:13px;font-weight:700;fill:#e2e8f0;pointer-events:none";
+  fl.textContent = `Floor ${FLOOR_LABELS[currentFloor]}`;
+  svg.appendChild(fl);
+
+  // A* path (render below dots so dots sit on top)
+  if (result) drawPath(svg, result.path_coords, currentFloor);
+
+  // Cross-floor path hint
+  if (result) {
+    const pathFloors = [...new Set(result.path_coords.map(p => p.floor_z))];
+    const others = pathFloors.filter(f => f !== currentFloor);
+    if (others.length) {
+      const ht = svgEl("text", { x:531, y:136, "text-anchor":"middle" });
+      ht.style.cssText = "font-size:9px;fill:#6366f1;pointer-events:none";
+      ht.textContent = `↕ path continues on floor${others.length>1?"s":""}: ${others.map(f=>FLOOR_LABELS[f]).join(", ")}`;
+      svg.appendChild(ht);
+    }
+  }
+
+  // Patient marker
+  if (result) {
+    const pc = result.patient_coords;
+    if (pc?.floor_z === currentFloor) drawPatient(svg, pc.x, pc.y);
+  }
+
+  // Doctor dots
+  docsForFloor(currentFloor).forEach(doc => {
+    drawDoctor(svg, doc, result?.assigned_doctor?.id === doc.id);
+  });
+}
+
+function drawDoctor(svg, doc, isAssigned) {
+  const x = doc.x ?? 530, y = doc.y ?? 350;
+  const fill = STATUS_COLORS[doc.status] ?? "#6B7280";
+  const g = svgEl("g");
+  g.style.cursor = "default";
+
+  if (isAssigned) {
+    // Outer animated ring
+    const ring = svgEl("circle", { cx:x, cy:y, r:14, fill:"none", stroke:"#3b82f6", "stroke-width":1.5, opacity:0.5 });
+    ring.style.animation = "ringPulse 1.8s ease-out infinite";
+    svg.appendChild(ring);
+    // Solid inner ring
+    svg.appendChild(svgEl("circle", { cx:x, cy:y, r:12, fill:"none", stroke:"#3b82f6", "stroke-width":2 }));
+  }
+
+  g.appendChild(svgEl("circle", {
+    cx:x, cy:y, r:7,
+    fill: isAssigned ? "#2563eb" : fill,
+    stroke: isAssigned ? "#93c5fd" : "#0f172a",
+    "stroke-width": isAssigned ? 2 : 1.5,
+  }));
+
+  const lastName = doc.name.split(" ").pop();
+  const lbl = svgEl("text", { x:x+10, y:y+4 });
+  lbl.style.cssText = `font-size:9px;fill:${isAssigned?"#93c5fd":"#475569"};pointer-events:none;font-weight:${isAssigned?700:400}`;
+  lbl.textContent = lastName;
+  g.appendChild(lbl);
+
+  // Native tooltip
+  const title = document.createElementNS(NS, "title");
+  title.textContent = [
+    doc.name,
+    (doc.specialty||[]).join(", "),
+    `Status: ${doc.status}`,
+    `Zone: ${doc.zone}`,
+    `Cases: ${doc.active_cases??0}  Pages/hr: ${doc.page_count_1hr??0}`,
+    doc.on_call ? "✓ On call" : "Not on call",
+  ].join("\n");
+  g.appendChild(title);
+
+  svg.appendChild(g);
+}
+
+function drawPatient(svg, x, y) {
+  const g = svgEl("g");
+
+  // Pulsing ring (SMIL)
+  const ring = svgEl("circle", { cx:x, cy:y, r:10, fill:"none", stroke:"#ef4444", "stroke-width":2 });
+  ring.innerHTML =
+    `<animate attributeName="r" values="10;22;10" dur="1.8s" repeatCount="indefinite"/>` +
+    `<animate attributeName="opacity" values="0.7;0;0.7" dur="1.8s" repeatCount="indefinite"/>`;
+  g.appendChild(ring);
+
+  g.appendChild(svgEl("circle", { cx:x, cy:y, r:8, fill:"#ef4444", stroke:"#fca5a5", "stroke-width":1.5 }));
+  g.appendChild(svgEl("line",   { x1:x-5, y1:y,   x2:x+5, y2:y,   stroke:"#fff", "stroke-width":2, "stroke-linecap":"round" }));
+  g.appendChild(svgEl("line",   { x1:x,   y1:y-5, x2:x,   y2:y+5, stroke:"#fff", "stroke-width":2, "stroke-linecap":"round" }));
+
+  const lbl = svgEl("text", { x:x+11, y:y+4 });
+  lbl.style.cssText = "font-size:9px;fill:#fca5a5;font-weight:700;pointer-events:none";
+  lbl.textContent = "Patient";
+  g.appendChild(lbl);
+
+  svg.appendChild(g);
+}
+
+function drawPath(svg, pathCoords, floorZ) {
+  const pts = pathCoords.filter(p => p.floor_z === floorZ);
+
+  // Waypoint dots
+  pts.forEach(p => {
+    svg.appendChild(svgEl("circle", { cx:p.x, cy:p.y, r:3.5, fill:"#3b82f6", opacity:0.55 }));
+  });
+
+  if (pts.length === 1) {
+    // Draw dashed line from single point to elevator hub
+    const pathEl = svgEl("path", {
+      d:`M ${pts[0].x} ${pts[0].y} L 531 160`,
+      fill:"none", stroke:"#6366f1", "stroke-width":2,
+      "stroke-dasharray":"5 4", opacity:0.7,
+    });
+    svg.appendChild(pathEl);
+    const ht = svgEl("text", { x:542, y:156 });
+    ht.style.cssText = "font-size:8px;fill:#818cf8;pointer-events:none";
+    ht.textContent = "↑ elevator";
+    svg.appendChild(ht);
+    return;
+  }
+
+  if (pts.length < 2) return;
+
+  const d = "M " + pts.map(p => `${p.x} ${p.y}`).join(" L ");
+  const pathId = "astar-" + Date.now();
+
+  const pathEl = svgEl("path", {
+    id: pathId, d,
+    fill:"none", stroke:"#3b82f6", "stroke-width":3.5,
+    "stroke-linecap":"round", "stroke-linejoin":"round",
+  });
+  pathEl.style.filter = "drop-shadow(0 0 10px rgba(59,130,246,0.8))";
+  svg.appendChild(pathEl);
+
+  // Animate draw
+  requestAnimationFrame(() => {
+    const len = pathEl.getTotalLength();
+    pathEl.style.strokeDasharray = len;
+    pathEl.style.strokeDashoffset = len;
+    pathEl.style.transition = "stroke-dashoffset 1.3s cubic-bezier(.4,0,.2,1)";
+    requestAnimationFrame(() => { pathEl.style.strokeDashoffset = "0"; });
+  });
+
+  // Animated dot travelling along path
+  const traveller = svgEl("circle", { r:5, fill:"#93c5fd", stroke:"#fff", "stroke-width":1.5 });
+  const anim = document.createElementNS(NS, "animateMotion");
+  anim.setAttribute("dur", "2.2s");
+  anim.setAttribute("repeatCount", "indefinite");
+  anim.setAttribute("calcMode", "linear");
+  const mpath = document.createElementNS(NS, "mpath");
+  mpath.setAttribute("href", "#" + pathId);
+  anim.appendChild(mpath);
+  traveller.appendChild(anim);
+  svg.appendChild(traveller);
+}
+
+// ─── Doctor list (sidebar) ───────────────────────────────────────────────────
+function docsForFloor(floorZ) {
+  const src = result?.all_doctors ?? liveDoc;
+  return src.filter(d => {
+    const fz = d.floor_z ?? FLOOR_LABEL_TO_Z[d.floor] ?? 3;
+    return fz === floorZ;
+  });
+}
+
+function renderDocList() {
+  const docs = docsForFloor(currentFloor);
+  const c = document.getElementById("doc-list");
+  if (!docs.length) {
+    c.innerHTML = '<div class="empty-floor">No doctors on this floor</div>';
+    return;
+  }
+  const assignedId = result?.assigned_doctor?.id;
+  c.innerHTML = docs.map(d => `
+    <div class="doc-item">
+      <div class="sdot" style="background:${STATUS_COLORS[d.status]||"#6B7280"}"></div>
+      <div style="flex:1">
+        <div class="dn">${d.name}</div>
+        <div class="dz">${d.zone}</div>
+      </div>
+      ${d.id === assignedId ? '<span class="assigned-badge">assigned</span>' : ""}
+    </div>
+  `).join("");
+}
+
+// ─── Dispatch ────────────────────────────────────────────────────────────────
+async function runDispatch() {
+  const zone = document.getElementById("sel-zone").value;
+  const spec = document.getElementById("sel-spec").value;
+  const btn  = document.getElementById("dispatch-btn");
+
+  btn.disabled = true;
+  btn.textContent = "Dispatching…";
+
+  try {
+    const r = await fetch(`/api/pathfinding?patient_zone=${zone}&specialty=${spec}`);
+    result = await r.json();
+
+    // Switch to assigned doctor's floor to show path start
+    if (result.assigned_doctor?.floor_z != null) {
+      currentFloor = result.assigned_doctor.floor_z;
+    }
+
+    refreshTabs();
+    renderMap();
+    renderDocList();
+
+    // Show result card
+    const doc = result.assigned_doctor;
+    if (doc) {
+      document.getElementById("result-card").innerHTML = `
+        <div class="dr-name">${doc.name}</div>
+        <div class="dr-spec">${(doc.specialty||[]).join(" · ")}</div>
+        <div class="info-row"><span class="lbl">Status</span><span class="val">${doc.status}</span></div>
+        <div class="info-row"><span class="lbl">Zone</span><span class="val">${doc.zone}</span></div>
+        <div class="info-row"><span class="lbl">Floor</span><span class="val">${doc.floor ?? "?"}</span></div>
+        <div class="info-row"><span class="lbl">On call</span><span class="val">${doc.on_call?"Yes":"No"}</span></div>
+        <div class="info-row"><span class="lbl">Active cases</span><span class="val">${doc.active_cases??0}</span></div>
+        <div class="info-row"><span class="lbl">Pages / hr</span><span class="val">${doc.page_count_1hr??0}</span></div>
+        <div class="eta-pill">ETA: ${result.eta_minutes} min</div>
+        <div class="path-trace">Path: ${result.path_zones.map(z=>`<span class="z">${z}</span>`).join(" → ")}</div>
+      `;
+      document.getElementById("result-section").style.display = "block";
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "⚡ Run Dispatch";
+  }
+}
+
+// ─── CSS animation for assigned-doctor ring ──────────────────────────────────
+const style = document.createElement("style");
+style.textContent = `
+  @keyframes ringPulse {
+    0%   { r: 14; opacity: 0.5; }
+    100% { r: 26; opacity: 0; }
+  }
+`;
+document.head.appendChild(style);
+
+// Initial render (empty map until data arrives)
+renderMap();
+renderDocList();
+</script>
+</body>
+</html>

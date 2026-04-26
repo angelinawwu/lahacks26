@@ -21,6 +21,7 @@ import io
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
@@ -31,6 +32,15 @@ import voice_log
 
 bp = Blueprint("voice", __name__)
 _log = logging.getLogger("medpage.voice")
+
+
+def _room_size(sio, room: str, namespace: str = "/") -> int:
+    try:
+        ns_rooms = sio.server.manager.rooms.get(namespace, {})
+        members = ns_rooms.get(room) or {}
+        return len(members)
+    except Exception:
+        return -1
 
 
 def _now() -> str:
@@ -241,9 +251,20 @@ def voice_urgent():
     patient_id = parsed.get("patient_id")
     priority = parsed.get("priority_hint", "P2")
     specialty_hint = parsed.get("specialty_hint")
+    cid = (request.headers.get("X-Correlation-Id") or uuid4().hex[:8])[:32]
+
+    _log.info(
+        "voice.urgent start cid=%s priority=%s specialty=%s room=%s requested_by=%s",
+        cid, priority, specialty_hint, room, requested_by,
+    )
 
     # Pick the best available doctor for the specialty
+    t0 = time.monotonic()
     doctor_id: Optional[str] = _select_doctor(specialty_hint, room)
+    _log.info(
+        "voice.select cid=%s doctor_id=%s ms=%.1f",
+        cid, doctor_id, (time.monotonic() - t0) * 1000,
+    )
     if not doctor_id:
         # Fallback: first available doctor
         for doc in state.DOCTORS.values():
@@ -298,7 +319,16 @@ def voice_urgent():
         doc["active_cases"] = doc.get("active_cases", 0) + 1
 
     sio = current_app.socketio
+    t0 = time.monotonic()
+    op_listeners = _room_size(sio, "operators")
     sio.emit("doctor_paged", page, room="operators")
+    _log.info(
+        "voice.emit doctor_paged cid=%s page_id=%s room=operators listeners=%d ms=%.1f",
+        cid, page_id, op_listeners, (time.monotonic() - t0) * 1000,
+    )
+
+    t0 = time.monotonic()
+    doc_listeners = _room_size(sio, doctor_id)
     sio.emit(
         "incoming_page",
         {
@@ -313,10 +343,19 @@ def voice_urgent():
         },
         room=doctor_id,
     )
+    _log.info(
+        "voice.emit incoming_page cid=%s page_id=%s room=%s listeners=%d ms=%.1f",
+        cid, page_id, doctor_id, doc_listeners, (time.monotonic() - t0) * 1000,
+    )
+    if doc_listeners == 0:
+        _log.warning(
+            "voice.emit cid=%s page_id=%s room=%s — NOBODY LISTENING",
+            cid, page_id, doctor_id,
+        )
 
     _log.info(
-        "Voice urgent page %s dispatched → %s (priority=%s)",
-        page_id, doctor_id, priority,
+        "voice.urgent done cid=%s page_id=%s doctor=%s priority=%s",
+        cid, page_id, doctor_id, priority,
     )
     return jsonify(page), 201
 

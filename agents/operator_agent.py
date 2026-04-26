@@ -10,12 +10,21 @@ Implements Chat Protocol from uagents_core.contrib.protocols.chat for ASI:One.
 """
 from __future__ import annotations
 import json
+import logging
 import os
 import re
+import time
+import uuid
 from typing import List, Optional, Dict, Any
 
 from dotenv import load_dotenv
 from uagents import Agent, Context, Model
+
+_log = logging.getLogger("medpage.operator")
+
+
+def _ms(t0: float) -> float:
+    return (time.monotonic() - t0) * 1000
 try:
     from uagents_core.contrib.protocols.chat import ChatMessage, ChatAcknowledgement
     _CHAT_PROTOCOL_AVAILABLE = True
@@ -431,32 +440,45 @@ def distribute_load_among_top_candidates(
 async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     """
     Async pipeline with backend integration for speed.
-    
+
     For urgent (P1/P2): Parallel fetching, short timeouts, fast path
     For routine (P3/P4): Can tolerate slight latency for richer context
     """
     from agents.backend_client import get_backend_client
-    
+
+    cid = uuid.uuid4().hex[:8]
+    t_pipeline = time.monotonic()
+    _log.info(
+        "agent.alert cid=%s room=%s requested_by=%s text=%r",
+        cid, alert.room, alert.requested_by, (alert.raw_text or "")[:100],
+    )
+
     backend = get_backend_client()
     priority = None  # Will be set after classification
-    
+
     # Load configurations
     autonomy_config = load_autonomy_config()
-    
+
     # Step 1: Classify priority (always fast, local)
+    t = time.monotonic()
     priority_resp = priority_classify(alert)
     priority = priority_resp.priority
     is_urgent = priority in ("P1", "P2")
-    
+    _log.info(
+        "agent.priority cid=%s P=%s flags=%s ms=%.1f",
+        cid, priority, priority_resp.guardrail_flags, _ms(t),
+    )
+
     # Step 2: Determine target zone
     target_zone = get_zone_from_room(alert.room) if alert.room else "nurses_station"
-    
+
     # Step 3: EHR Lookup via backend API (async, with priority-based timeout)
     ehr_data = None
     ehr_matched = False
     room_data = None
 
     if alert.room:
+        t = time.monotonic()
         try:
             # Use backend client which has priority-aware timeouts
             ehr_data = await backend.lookup_ehr_by_room(alert.room, priority)
@@ -464,9 +486,13 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
                 ehr_matched = True
                 # Also fetch room details for zone info
                 room_data = await backend.get_room(alert.room, priority)
-        except Exception:
+        except Exception as e:
             # Fallback: continue without EHR on timeout/error
-            pass
+            _log.warning("agent.ehr cid=%s err=%r", cid, str(e)[:120])
+        _log.info(
+            "agent.ehr cid=%s room=%s matched=%s ms=%.1f",
+            cid, alert.room, ehr_matched, _ms(t),
+        )
 
     # Step 3b: Voice channel awareness — pull recent voice events that may
     # add context for this alert (same room, or same channel). Best-effort
@@ -503,14 +529,22 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     )
     
     # Step 5: Fetch live doctors from backend (cached for non-urgent)
+    t = time.monotonic()
+    fallback_used = False
     try:
         doctors = await backend.get_all_doctors(use_cache=not is_urgent)
         # Convert to dict for easy lookup
         doctors_map = {d["id"]: d for d in doctors}
-    except Exception:
+    except Exception as e:
         # Fallback to local TinyDB
+        fallback_used = True
+        _log.warning("agent.doctors cid=%s backend_err=%r — falling back to TinyDB", cid, str(e)[:120])
         db = TinyDB(DB_PATH)
         doctors_map = {doc["id"]: dict(doc) for doc in db.all()}
+    _log.info(
+        "agent.doctors cid=%s n=%d fallback=%s ms=%.1f",
+        cid, len(doctors_map), fallback_used, _ms(t),
+    )
     
     # Step 6: Query and score candidates (using live data)
     specialties = build_specialty_query(alert)
@@ -558,10 +592,17 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     future_available = find_future_available_clinicians(scored, schedules, max_wait_minutes=30)
     
     # Step 8: Rank with ASI-1 or fallback
+    t = time.monotonic()
     case_resp = rank_with_asi1(alert, scored, priority)
+    used_fallback = case_resp is None
     if case_resp is None:
         case_resp = fallback_rank(scored)
-    
+    top_id = case_resp.candidates[0].id if case_resp.candidates else None
+    _log.info(
+        "agent.rank cid=%s candidates=%d top=%s fallback=%s ms=%.1f",
+        cid, len(case_resp.candidates), top_id, used_fallback, _ms(t),
+    )
+
     case_resp.specialty_query = specialties
     
     # Step 9: Handle time-queued dispatch if no one immediately available
@@ -634,13 +675,21 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
                 backup_ids = [b.id for b in backup_doctors]
                 
                 # Create page via backend with backup doctors for escalation
+                t = time.monotonic()
                 page_result = await backend.create_page(
                     doctor_id=selected.id,
                     priority=priority,
                     message=alert.raw_text,
                     room=alert.room,
                     patient_id=patient_id,
-                    requested_by=alert.requested_by
+                    requested_by=alert.requested_by,
+                    correlation_id=cid,
+                )
+                _log.info(
+                    "agent.page cid=%s doctor=%s page_id=%s ms=%.1f total_ms=%.1f",
+                    cid, selected.id,
+                    (page_result or {}).get("id"),
+                    _ms(t), _ms(t_pipeline),
                 )
                 # Record the page attempt for consecutive paging protection
                 record_page_attempt(selected.id)
@@ -689,8 +738,13 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
             except Exception as e:
                 page_result = {"error": str(e), "status": "failed"}
                 final_reasoning += f" [PAGE FAILED: {e}]"
+                _log.error("agent.page cid=%s FAILED err=%r", cid, str(e)[:200])
     else:
         final_reasoning = "No suitable candidates found — requires operator intervention"
+        _log.warning(
+            "agent.no_clinician cid=%s priority=%s zone=%s n_doctors=%d total_ms=%.1f",
+            cid, priority, target_zone, len(doctors_map), _ms(t_pipeline),
+        )
     
     return DispatchDecision(
         alert=alert,

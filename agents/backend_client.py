@@ -6,6 +6,7 @@ where every millisecond matters. Implements caching for non-urgent data.
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Optional, Dict, List, Any
@@ -16,6 +17,8 @@ import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_log = logging.getLogger("medpage.backend_client")
 
 # Backend base URL - configurable for different environments
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
@@ -59,11 +62,18 @@ class BackendClient:
         cache_key = "doctors_all"
 
         if use_cache and self._is_cache_valid(cache_key):
+            _log.info("bc.get_all_doctors cache=HIT n=%d", len(_cache[cache_key]))
             return _cache[cache_key]
 
+        t0 = time.monotonic()
         resp = await self._standard_client.get(f"{self.base_url}/api/doctors")
+        elapsed_ms = (time.monotonic() - t0) * 1000
         resp.raise_for_status()
         doctors = resp.json()
+        _log.info(
+            "bc.get_all_doctors cache=MISS n=%d status=%d ms=%.1f",
+            len(doctors), resp.status_code, elapsed_ms,
+        )
 
         if use_cache:
             self._set_cache(cache_key, doctors)
@@ -117,32 +127,58 @@ class BackendClient:
         # Handle different room ID formats
         formatted_room = room_id if room_id.startswith("room_") else f"room_{room_id}"
 
+        t0 = time.monotonic()
         try:
             resp = await client.get(f"{self.base_url}/api/rooms/{formatted_room}")
             if resp.status_code == 404:
                 resp = await client.get(f"{self.base_url}/api/rooms/{room_id}")
             if resp.status_code == 404:
+                _log.info(
+                    "bc.get_room room=%s status=404 ms=%.1f",
+                    room_id, (time.monotonic() - t0) * 1000,
+                )
                 return None
             resp.raise_for_status()
+            _log.info(
+                "bc.get_room room=%s status=%d ms=%.1f",
+                room_id, resp.status_code, (time.monotonic() - t0) * 1000,
+            )
             return resp.json()
         except httpx.TimeoutException:
+            _log.warning(
+                "bc.get_room TIMEOUT room=%s ms=%.1f priority=%s",
+                room_id, (time.monotonic() - t0) * 1000, priority,
+            )
             return None
     
     async def get_patient_with_ehr(
-        self, 
-        patient_id: str, 
+        self,
+        patient_id: str,
         priority: Optional[str] = None
     ) -> Optional[Dict]:
         """Fetch patient merged with full EHR (medications, labs, vitals, notes)."""
         client = self._client_for_priority(priority)
 
+        t0 = time.monotonic()
         try:
             resp = await client.get(f"{self.base_url}/api/patients/{patient_id}")
             if resp.status_code == 404:
+                _log.info(
+                    "bc.get_patient_with_ehr patient_id=%s status=404 ms=%.1f",
+                    patient_id, (time.monotonic() - t0) * 1000,
+                )
                 return None
             resp.raise_for_status()
+            _log.info(
+                "bc.get_patient_with_ehr patient_id=%s status=%d ms=%.1f",
+                patient_id, resp.status_code, (time.monotonic() - t0) * 1000,
+            )
             return resp.json()
         except httpx.TimeoutException:
+            _log.warning(
+                "bc.get_patient_with_ehr TIMEOUT patient_id=%s ms=%.1f priority=%s",
+                patient_id, (time.monotonic() - t0) * 1000, priority,
+            )
             return None
     
     async def lookup_ehr_by_room(
@@ -178,11 +214,16 @@ class BackendClient:
         message: str,
         room: Optional[str] = None,
         patient_id: Optional[str] = None,
-        requested_by: Optional[str] = None
+        requested_by: Optional[str] = None,
+        correlation_id: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Trigger an actual page to a doctor.
         This is the final dispatch action - always use urgent timeout.
+
+        ``correlation_id`` is forwarded as ``X-Correlation-Id`` so the agent's
+        log line and the backend's `page.create` log line share a cid and can
+        be grepped together.
         """
         payload = {
             "doctor_id": doctor_id,
@@ -195,16 +236,32 @@ class BackendClient:
             payload["patient_id"] = patient_id
         if requested_by:
             payload["requested_by"] = requested_by
-        
+
+        headers = {"X-Correlation-Id": correlation_id} if correlation_id else None
+
         # Pages are always urgent - use fast client
+        t0 = time.monotonic()
         try:
             resp = await self._urgent_client.post(
                 f"{self.base_url}/api/page",
-                json=payload
+                json=payload,
+                headers=headers,
             )
+            elapsed_ms = (time.monotonic() - t0) * 1000
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            _log.info(
+                "bc.create_page cid=%s doctor_id=%s priority=%s page_id=%s status=%d ms=%.1f",
+                correlation_id, doctor_id, priority, data.get("id"),
+                resp.status_code, elapsed_ms,
+            )
+            return data
         except httpx.TimeoutException:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            _log.error(
+                "bc.create_page TIMEOUT cid=%s doctor_id=%s ms=%.1f",
+                correlation_id, doctor_id, elapsed_ms,
+            )
             return {"error": "timeout", "status": "failed"}
     
     async def respond_to_page(self, page_id: str, outcome: str) -> Optional[Dict]:

@@ -1,0 +1,16 @@
+[Unit]
+Description=MedPage Flask Backend (Gunicorn + eventlet)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/lahacks26/backend
+Environment="PATH=/home/ubuntu/miniconda/bin"
+ExecStart=/home/ubuntu/miniconda/bin/gunicorn -c gunicorn.conf.py app:app
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

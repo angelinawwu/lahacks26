@@ -60,13 +60,16 @@ export const PRIORITY_PULSE: Record<string, { color: string; opacity: number }> 
 };
 
 // Subdivide a wing into stacked horizontal rows for room rects.
+// Reserves vertical headroom at the top of each wing so the zone caption
+// (rendered at wing.y + 18) never overlaps the first room rectangle.
 function row(wing: WingId, idx: number, total: number, span = 1): Rect {
   const w = WING_RECTS[wing];
   const pad = 8;
-  const rowH = (w.h - pad * 2) / total;
+  const headerPad = 26;
+  const rowH = (w.h - headerPad - pad) / total;
   return {
     x: w.x + pad,
-    y: w.y + pad + idx * rowH,
+    y: w.y + headerPad + idx * rowH,
     w: w.w - pad * 2,
     h: rowH * span - 4,
   };
@@ -120,7 +123,7 @@ export const FLOORS: FloorDef[] = [
       ["central", 0, 3, "nicu", "NICU"],
       ["central", 1, 3, "nursery", "Nursery"],
       ["central", 2, 3, "postpartum", "Postpartum Unit"],
-      ["north", 0, 1, "radiology", "Radiology · CT / MRI / X-Ray / US / Fluoro"],
+      ["north", 0, 1, "radiology", "Radiology · CT / MRI / X-Ray / Fluoro"],
       ["orthopaedic", 0, 2, "luskin_2100", "Luskin Children's Clinic · Suite 2100"],
       ["orthopaedic", 1, 2, "ortho_outpatient_2100", "Orthopaedic Outpatient · Suite 2100"],
     ]),

@@ -14,8 +14,6 @@ import type { ActiveAlert, ClinicianPin as ClinicianPinT } from "@/lib/types";
 import { ClinicianPin } from "./ClinicianPin";
 import { AlertOverlay } from "./AlertOverlay";
 
-const EASE_OUT_QUART = [0.165, 0.84, 0.44, 1] as const;
-
 // Flashing room component for selected alerts
 function FlashingRoom({ rect }: { rect: Rect }) {
   return (
@@ -98,10 +96,6 @@ export function FloorPlan({
       width="100%"
       height="100%"
       preserveAspectRatio="xMidYMid meet"
-      initial={{ opacity: 0, scale: 0.96 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.25, ease: EASE_OUT_QUART }}
     >
       {/* Wings */}
       {def.wings.map((wing) => {
@@ -130,28 +124,36 @@ export function FloorPlan({
       })}
 
       {/* Rooms */}
-      {def.rooms.map((room) => (
-        <g key={room.id}>
-          <rect
-            x={room.rect.x}
-            y={room.rect.y}
-            width={room.rect.w}
-            height={room.rect.h}
-            fill="#FFFFFF"
-            fillOpacity={0.55}
-            stroke={WING_COLORS[room.wing].stroke}
-            strokeOpacity={0.5}
-            strokeWidth={1}
-          />
-          <text
-            x={room.rect.x + 6}
-            y={room.rect.y + 14}
-            style={{ fontSize: 10, fill: "#1F2937", fontWeight: 500 }}
-          >
-            {room.name}
-          </text>
-        </g>
-      ))}
+      {def.rooms.map((room) => {
+        // Keep the room label clear of the wing's own header label (which
+        // sits at wing.y + 18). If this room hugs the top of its wing, push
+        // its label down so the zone caption stays readable.
+        const wingTop = WING_RECTS[room.wing].y;
+        const minLabelY = wingTop + 32;
+        const labelY = Math.max(room.rect.y + 14, minLabelY);
+        return (
+          <g key={room.id}>
+            <rect
+              x={room.rect.x}
+              y={room.rect.y}
+              width={room.rect.w}
+              height={room.rect.h}
+              fill="#FFFFFF"
+              fillOpacity={0.55}
+              stroke={WING_COLORS[room.wing].stroke}
+              strokeOpacity={0.5}
+              strokeWidth={1}
+            />
+            <text
+              x={room.rect.x + 6}
+              y={labelY}
+              style={{ fontSize: 10, fill: "#1F2937", fontWeight: 500 }}
+            >
+              {room.name}
+            </text>
+          </g>
+        );
+      })}
 
       {/* Alert overlays */}
       {alertRects.map((a) => (
@@ -177,34 +179,7 @@ export function FloorPlan({
         ));
       })}
 
-      {/* Back button */}
-      <g
-        style={{ cursor: "pointer" }}
-        onClick={onBack}
-        transform="translate(20 20)"
-      >
-        <rect
-          width={120}
-          height={28}
-          rx={6}
-          fill="#FFFFFF"
-          stroke="#CBD5E1"
-          strokeWidth={1}
-        />
-        <text x={12} y={18} style={{ fontSize: 12, fill: "#0F172A", fontWeight: 500 }}>
-          ← All floors
-        </text>
-      </g>
 
-      {/* Floor label */}
-      <text
-        x={980}
-        y={28}
-        textAnchor="end"
-        style={{ fontSize: 13, fontWeight: 600, fill: "#0F172A" }}
-      >
-        {def.label}
-      </text>
     </motion.svg>
   );
 }

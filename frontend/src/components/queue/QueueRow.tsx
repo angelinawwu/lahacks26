@@ -118,7 +118,7 @@ export function QueueRow({
           style={{
             fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
             fontSize: 12,
-            fontWeight: 500,
+            fontWeight: 300,
             color: danger ? "var(--color-text-danger)" : "var(--color-text-primary)",
             whiteSpace: "nowrap",
           }}

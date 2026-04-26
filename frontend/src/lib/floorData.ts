@@ -59,19 +59,38 @@ export const PRIORITY_PULSE: Record<string, { color: string; opacity: number }> 
   P4: { color: "#9CA3AF", opacity: 0.14 },
 };
 
-// Subdivide a wing into stacked horizontal rows for room rects.
-// Reserves vertical headroom at the top of each wing so the zone caption
-// (rendered at wing.y + 18) never overlaps the first room rectangle.
+// Layout constants for room rects within a wing. The 2D floor plan reserves
+// `WING_HEADER_PAD` px at the top of each wing for the zone caption; the 3D
+// stack view uses `WING_PAD` on all sides (no reserved caption area).
+const WING_PAD = 8;
+export const WING_HEADER_PAD = 26;
+
+// Subdivide a wing into stacked horizontal rows for room rects. The rects
+// produced here are sized for the 2D floor plan (with header padding). Use
+// `roomRect3D` to get the equivalent layout for the 3D stack view.
 function row(wing: WingId, idx: number, total: number, span = 1): Rect {
   const w = WING_RECTS[wing];
-  const pad = 8;
-  const headerPad = 26;
-  const rowH = (w.h - headerPad - pad) / total;
+  const rowH = (w.h - WING_HEADER_PAD - WING_PAD) / total;
   return {
-    x: w.x + pad,
-    y: w.y + headerPad + idx * rowH,
-    w: w.w - pad * 2,
+    x: w.x + WING_PAD,
+    y: w.y + WING_HEADER_PAD + idx * rowH,
+    w: w.w - WING_PAD * 2,
     h: rowH * span - 4,
+  };
+}
+
+// Remap a room's 2D rect back to a "no-header-pad" version for the 3D stack
+// view, so rooms fill their wing uniformly without a caption gap at the top.
+export function roomRect3D(room: RoomDef): Rect {
+  const w = WING_RECTS[room.wing];
+  const innerH2d = w.h - WING_HEADER_PAD - WING_PAD;
+  const innerH3d = w.h - WING_PAD * 2;
+  const scale = innerH3d / innerH2d;
+  return {
+    x: room.rect.x,
+    y: w.y + WING_PAD + (room.rect.y - (w.y + WING_HEADER_PAD)) * scale,
+    w: room.rect.w,
+    h: room.rect.h * scale,
   };
 }
 

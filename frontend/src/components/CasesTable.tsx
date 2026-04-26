@@ -4,8 +4,8 @@ import type { CSSProperties } from "react";
 import type { AlertEvent } from "@/lib/types";
 import { PriorityBadge, StatusChip } from "./badges";
 import { formatMMSS, useElapsedSeconds } from "@/lib/useElapsed";
-import { inferFloor } from "@/lib/floorData";
-import type { FloorId } from "@/lib/floorData";
+import { inferFloor, inferFloorWing } from "@/lib/floorData";
+import type { FloorId, WingId } from "@/lib/floorData";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -57,10 +57,12 @@ export function CasesTable({
   cases,
   onOverride,
   onFloorSelect,
+  onAlertSelect,
 }: {
   cases: AlertEvent[];
   onOverride?: (a: AlertEvent) => void;
   onFloorSelect?: (floor: FloorId) => void;
+  onAlertSelect?: (alert: { alert_id: string; floor: FloorId; wing: WingId; zone: string; priority: "P1" | "P2" | "P3" | "P4" } | null) => void;
 }) {
   const awaiting = cases.filter(
     (c) => c.status === "paging" || c.status === "awaiting",
@@ -98,6 +100,20 @@ export function CasesTable({
                     if (a.room && onFloorSelect) {
                       const floor = inferFloor(a.room);
                       onFloorSelect(floor);
+                      
+                      // Also set the selected alert for flashing
+                      if (onAlertSelect) {
+                        // Convert AlertEvent to ActiveAlert format
+                        const { wing } = inferFloorWing(a.room);
+                        const activeAlert = {
+                          alert_id: a.alert_id,
+                          floor: floor,
+                          wing: wing,
+                          zone: a.room || "",
+                          priority: a.priority as "P1" | "P2" | "P3" | "P4"
+                        };
+                        onAlertSelect(activeAlert);
+                      }
                     }
                   }}
                   style={{ cursor: a.room ? "pointer" : "default" }}

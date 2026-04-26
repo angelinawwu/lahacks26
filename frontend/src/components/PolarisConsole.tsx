@@ -19,7 +19,7 @@ function priorityStyles(p: string) {
   }
 }
 
-export function MedPageConsole() {
+export function PolarisConsole() {
   const [raw, setRaw] = useState(
     "Patient in room 412 with sudden chest pain and diaphoresis, vitals unstable."
   );
@@ -69,7 +69,7 @@ export function MedPageConsole() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <header className="mb-8 border-b border-zinc-800/80 pb-6">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
-            MedPage dispatch
+            Polaris dispatch
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">
             Sends alerts through the same priority and case pipeline as the Python

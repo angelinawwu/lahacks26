@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { FLOOR_IDS, STATUS_COLORS, type FloorId } from "@/lib/floorData";
 import type { ActiveAlert, ClinicianPin } from "@/lib/types";
 import { FloorStack } from "./map/FloorStack";
@@ -21,14 +21,19 @@ export type FloorMapProps = {
   selectedFloor?: FloorId | null;
   onFloorSelect?: (floor: FloorId | null) => void;
   onClinicianClick?: (id: string) => void;
+  selectedAlert?: ActiveAlert | null;
+  onAlertSelect?: (alert: ActiveAlert | null) => void;
 };
 
-export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onClinicianClick }: FloorMapProps) {
+export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onClinicianClick, selectedAlert, onAlertSelect }: FloorMapProps) {
   const [internalSelectedFloor, setInternalSelectedFloor] = useState<FloorId | null>(null);
+  const [internalSelectedAlert, setInternalSelectedAlert] = useState<ActiveAlert | null>(null);
   
   // Use external state if provided, otherwise use internal state
   const currentFloor = selectedFloor !== undefined ? selectedFloor : internalSelectedFloor;
   const handleFloorSelect = onFloorSelect || setInternalSelectedFloor;
+  const currentAlert = selectedAlert !== undefined ? selectedAlert : internalSelectedAlert;
+  const handleAlertSelect = onAlertSelect || setInternalSelectedAlert;
 
   return (
     <div className="flex h-full w-full flex-col" style={{ background: "#F1F5F9" }}>
@@ -42,6 +47,23 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
         }}
       >
         <span style={{ fontSize: 11, color: "#64748B", marginRight: 4 }}>FLOOR</span>
+        <button
+          type="button"
+          onClick={() => handleFloorSelect(null)}
+          style={{
+            fontSize: 12,
+            fontWeight: 500,
+            padding: "4px 12px",
+            borderRadius: 999,
+            border: "1px solid #CBD5E1",
+            background: !currentFloor ? "#0F172A" : "transparent",
+            color: !currentFloor ? "#F8FAFC" : "#0F172A",
+            cursor: "pointer",
+            transition: "background 200ms ease, color 200ms ease",
+          }}
+        >
+          All
+        </button>
         {FLOOR_IDS.map((id) => {
           const active = currentFloor === id;
           return (
@@ -90,23 +112,39 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
       <div className="relative flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           {currentFloor ? (
-            <div key={`plan-${currentFloor}`} className="absolute inset-0">
+            <motion.div
+              key={`plan-${currentFloor}`}
+              className="absolute inset-0"
+              initial={{ opacity: 0, y: 0 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 0 }}
+              transition={{ duration: 0.02, ease: [0.165, 0.84, 0.44, 1] }}
+            >
               <FloorPlan
                 floor={currentFloor}
                 clinicians={clinicians}
                 alerts={alerts}
                 onClinicianClick={onClinicianClick}
                 onBack={() => handleFloorSelect(null)}
+                selectedAlert={currentAlert}
+                onAlertSelect={handleAlertSelect}
               />
-            </div>
+            </motion.div>
           ) : (
-            <div key="stack" className="absolute inset-0">
+            <motion.div
+              key="stack"
+              className="absolute inset-0"
+              initial={{ opacity: 0, y: 0 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 0 }}
+              transition={{ duration: 0.02, ease: [0.165, 0.84, 0.44, 1] }}
+            >
               <FloorStack
                 clinicians={clinicians}
                 alerts={alerts}
                 onSelectFloor={handleFloorSelect}
               />
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>

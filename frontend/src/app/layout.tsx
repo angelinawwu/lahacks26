@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MedPage",
+  title: "Polaris",
   description: "Hospital paging — priority triage and clinician dispatch",
 };
 

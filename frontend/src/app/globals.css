@@ -6,7 +6,7 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* MedPage design tokens (from operator dashboard mockup) */
+/* Polaris design tokens (from operator dashboard mockup) */
   --color-text-primary: #111418;
   --color-text-secondary: #5a6470;
   --color-text-tertiary: #8a94a0;
@@ -36,29 +36,29 @@ body {
 }
 
 /* Pulsing P1 room highlight for the floor map */
-@keyframes medpage-pulse {
+@keyframes polaris-pulse {
   0%, 100% { opacity: 0.18; transform: scale(1); }
   50%      { opacity: 0.45; transform: scale(1.18); }
 }
-.medpage-pulse {
+.polaris-pulse {
   transform-origin: center;
   transform-box: fill-box;
-  animation: medpage-pulse 1.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+  animation: polaris-pulse 1.4s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
 }
 
 /* Subtle entrance for the clinician active page card */
-@keyframes medpage-card-in {
+@keyframes polaris-card-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.medpage-card-in {
-  animation: medpage-card-in 220ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+.polaris-card-in {
+  animation: polaris-card-in 220ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
   will-change: transform, opacity;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .medpage-pulse,
-  .medpage-card-in {
+  .polaris-pulse,
+  .polaris-card-in {
     animation: none !important;
   }
   *,

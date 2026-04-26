@@ -124,7 +124,7 @@ export function ClinicianView() {
         className="flex items-center justify-between"
         style={{ padding: "12px 16px", borderBottom: HAIRLINE, background: "var(--color-background-primary)" }}
       >
-        <span style={{ fontSize: 15, fontWeight: 600 }}>MedPage</span>
+        <span style={{ fontSize: 15, fontWeight: 600 }}>Polaris</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{displayName}</span>
           <span

@@ -27,6 +27,7 @@ export default function OperatorPage() {
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [clinicians, setClinicians] = useState<ClinicianRecord[]>([]);
   const [selectedFloor, setSelectedFloor] = useState<FloorId | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<ActiveAlert | null>(null);
 
   useEffect(() => {
     getClinicians().then(setClinicians).catch(() => {});
@@ -83,6 +84,14 @@ export default function OperatorPage() {
     setTab(1); // Switch to floor view tab
   };
 
+  const handleAlertSelect = (alert: ActiveAlert | null) => {
+    setSelectedAlert(alert);
+    if (alert) {
+      setSelectedFloor(alert.floor);
+      setTab(1); // Switch to floor view tab when alert is selected
+    }
+  };
+
   const clinicianPins: ClinicianPin[] = useMemo(
     () =>
       clinicians.map((c) => {
@@ -130,7 +139,7 @@ export default function OperatorPage() {
         className="flex items-center justify-between"
         style={{ padding: "12px 16px", borderBottom: HAIRLINE, background: "var(--color-background-primary)" }}
       >
-        <span style={{ fontSize: 15, fontWeight: 500 }}>MedPage — Operator</span>
+        <span style={{ fontSize: 15, fontWeight: 500 }}>Polaris — Operator</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
             UCLA Medical Center · Santa Monica
@@ -176,13 +185,15 @@ export default function OperatorPage() {
             selectedFloor={selectedFloor}
             onFloorSelect={setSelectedFloor}
             onClinicianClick={(id) => console.log("clinician clicked", id)}
+            selectedAlert={selectedAlert}
+            onAlertSelect={handleAlertSelect}
           />
           <div style={{ borderLeft: HAIRLINE }}>
-            <AlertFeed alerts={alerts} onFloorSelect={handleFloorSelect} />
+            <AlertFeed alerts={alerts} onFloorSelect={handleFloorSelect} onAlertSelect={handleAlertSelect} />
           </div>
         </div>
       ) : (
-        <CasesTable cases={alerts} onFloorSelect={handleFloorSelect} />
+        <CasesTable cases={alerts} onFloorSelect={handleFloorSelect} onAlertSelect={handleAlertSelect} />
       )}
     </div>
   );

@@ -20,7 +20,7 @@ export function ActivePageCard({
 
   return (
     <section
-      className="medpage-card-in"
+      className="polaris-card-in"
       style={{
         background: "var(--color-background-primary)",
         border: HAIRLINE,

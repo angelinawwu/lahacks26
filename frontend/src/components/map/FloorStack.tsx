@@ -142,8 +142,8 @@ export function FloorStack({
             initial={{ opacity: 0, x: (i - mid) * STAGGER_X - 8 }}
             animate={{ opacity: 1, x: (i - mid) * STAGGER_X }}
             transition={{
-              duration: 0.25,
-              delay: (FLOORS.length - i) * 0.05,
+              duration: 0.15,
+              delay: (FLOORS.length - i) * 0.03,
               ease: [0.165, 0.84, 0.44, 1],
             }}
             style={{ cursor: "pointer" }}

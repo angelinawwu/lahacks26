@@ -16,18 +16,51 @@ import { AlertOverlay } from "./AlertOverlay";
 
 const EASE_OUT_QUART = [0.165, 0.84, 0.44, 1] as const;
 
+// Flashing room component for selected alerts
+function FlashingRoom({ rect }: { rect: Rect }) {
+  return (
+    <motion.rect
+      x={rect.x - 2}
+      y={rect.y - 2}
+      width={rect.w + 4}
+      height={rect.h + 4}
+      fill="#FFFFFF"
+      fillOpacity={0.6}
+      stroke="#FFFFFF"
+      strokeWidth={4}
+      initial={{ opacity: 0 }}
+      animate={{ 
+        opacity: [0, 1, 0, 1, 0, 1, 0],
+        scale: [1, 1.02, 1, 1.02, 1, 1.02, 1]
+      }}
+      transition={{ 
+        duration: 2.4, 
+        ease: "easeInOut"
+      }}
+      style={{ 
+        transformOrigin: "center",
+        filter: "drop-shadow(0 0 12px rgba(255, 255, 255, 0.8))"
+      }}
+    />
+  );
+}
+
 export function FloorPlan({
   floor,
   clinicians,
   alerts,
   onClinicianClick,
   onBack,
+  selectedAlert,
+  onAlertSelect,
 }: {
   floor: FloorId;
   clinicians: ClinicianPinT[];
   alerts: ActiveAlert[];
   onClinicianClick?: (id: string) => void;
   onBack: () => void;
+  selectedAlert?: ActiveAlert | null;
+  onAlertSelect?: (alert: ActiveAlert | null) => void;
 }) {
   const def = getFloor(floor);
   const floorClinicians = clinicians.filter((c) => c.floor === floor);
@@ -51,6 +84,13 @@ export function FloorPlan({
     const rect = room?.rect ?? WING_RECTS[a.wing];
     alertRects.push({ rect, priority: a.priority, key: a.alert_id });
   }
+
+  // Find the room for the selected alert to flash it
+  const selectedRoom = selectedAlert ? def.rooms.find(
+    (r) =>
+      r.name.toLowerCase().includes(selectedAlert.zone.toLowerCase()) ||
+      r.id.toLowerCase().includes(selectedAlert.zone.toLowerCase()),
+  ) : null;
 
   return (
     <motion.svg
@@ -117,6 +157,11 @@ export function FloorPlan({
       {alertRects.map((a) => (
         <AlertOverlay key={a.key} rect={a.rect} priority={a.priority} />
       ))}
+
+      {/* Flashing room for selected alert - render on top */}
+      {selectedRoom && selectedAlert && selectedAlert.floor === floor && (
+        <FlashingRoom rect={selectedRoom.rect} />
+      )}
 
       {/* Clinician pins */}
       {Array.from(byWing.entries()).flatMap(([wing, members]) => {

@@ -3,8 +3,8 @@
 import type { AlertEvent } from "@/lib/types";
 import { PriorityBadge } from "./badges";
 import { formatMMSS, useElapsedSeconds } from "@/lib/useElapsed";
-import { inferFloor } from "@/lib/floorData";
-import type { FloorId } from "@/lib/floorData";
+import { inferFloor, inferFloorWing } from "@/lib/floorData";
+import type { FloorId, WingId } from "@/lib/floorData";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -59,10 +59,12 @@ export function AlertFeed({
   alerts,
   onSelect,
   onFloorSelect,
+  onAlertSelect,
 }: {
   alerts: AlertEvent[];
   onSelect?: (alert: AlertEvent) => void;
   onFloorSelect?: (floor: FloorId) => void;
+  onAlertSelect?: (alert: { alert_id: string; floor: FloorId; wing: WingId; zone: string; priority: "P1" | "P2" | "P3" | "P4" } | null) => void;
 }) {
   return (
     <div
@@ -104,6 +106,20 @@ export function AlertFeed({
               if (a.room && onFloorSelect) {
                 const floor = inferFloor(a.room);
                 onFloorSelect(floor);
+                
+                // Also set the selected alert for flashing
+                if (onAlertSelect) {
+                  // Convert AlertEvent to ActiveAlert format
+                  const { wing } = inferFloorWing(a.room);
+                  const activeAlert = {
+                    alert_id: a.alert_id,
+                    floor: floor,
+                    wing: wing,
+                    zone: a.room || "",
+                    priority: a.priority as "P1" | "P2" | "P3" | "P4"
+                  };
+                  onAlertSelect(activeAlert);
+                }
               }
             }}
             className="block w-full text-left"

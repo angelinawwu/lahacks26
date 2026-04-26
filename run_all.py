@@ -100,10 +100,10 @@ def main():
     print("MedPage Multi-Agent System Starting...")
     print("=" * 60)
     print("\nStarting agents in separate processes:")
-    print("  - Priority Handler:               port 8002")
-    print("  - Case Handler:                   port 8003")
-    print("  - Operator Agent (Chat Protocol): port 8001")
-    print("  - Sentinel Agent (30s timer):     port 8004")
+    print("  - Priority Handler:               port 9002")
+    print("  - Case Handler:                   port 9003")
+    print("  - Operator Agent (Chat Protocol): port 9001")
+    print("  - Sentinel Agent (30s timer):     port 9004")
     print("")
     
     # Pre-compute Operator's address so the Sentinel knows where to send insights.

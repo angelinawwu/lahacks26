@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -7,10 +9,30 @@ from flask import Blueprint, jsonify, request, current_app
 import state
 
 bp = Blueprint("pages", __name__)
+_log = logging.getLogger("medpage.pages")
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _room_size(sio, room: str, namespace: str = "/") -> int:
+    """Count Socket.IO sessions joined to `room`. -1 if unknown."""
+    try:
+        ns_rooms = sio.server.manager.rooms.get(namespace, {})
+        members = ns_rooms.get(room) or {}
+        return len(members)
+    except Exception:
+        return -1
+
+
+def _cid() -> str:
+    """Use the X-Correlation-Id from the caller (e.g. operator_agent) or
+    fall back to a fresh 8-char hex so every page leaves one greppable trace."""
+    incoming = request.headers.get("X-Correlation-Id")
+    if incoming:
+        return incoming.strip()[:32]
+    return uuid4().hex[:8]
 
 
 @bp.get("/api/pages")
@@ -64,6 +86,18 @@ def create_page():
 
     page_id = uuid4().hex
     created_at = _now()
+    cid = _cid()
+
+    _log.info(
+        "page.create start cid=%s page_id=%s doctor_id=%s priority=%s room=%s requested_by=%s",
+        cid, page_id, doctor_id, priority, room, requested_by,
+    )
+
+    if doctor_id not in state.DOCTORS:
+        _log.warning(
+            "page.create cid=%s doctor_id=%s NOT in DOCTORS dict — page will be emitted to an empty room",
+            cid, doctor_id,
+        )
 
     page = {
         "id": page_id,
@@ -92,9 +126,17 @@ def create_page():
     sio = current_app.socketio
 
     # Notify the operator dashboard
+    t0 = time.monotonic()
+    op_listeners = _room_size(sio, "operators")
     sio.emit("doctor_paged", page, room="operators")
+    _log.info(
+        "page.emit doctor_paged cid=%s page_id=%s room=operators listeners=%d ms=%.1f",
+        cid, page_id, op_listeners, (time.monotonic() - t0) * 1000,
+    )
 
     # Notify the individual doctor
+    t0 = time.monotonic()
+    doc_listeners = _room_size(sio, doctor_id)
     sio.emit(
         "incoming_page",
         {
@@ -108,6 +150,15 @@ def create_page():
         },
         room=doctor_id,
     )
+    _log.info(
+        "page.emit incoming_page cid=%s page_id=%s room=%s listeners=%d ms=%.1f",
+        cid, page_id, doctor_id, doc_listeners, (time.monotonic() - t0) * 1000,
+    )
+    if doc_listeners == 0:
+        _log.warning(
+            "page.emit cid=%s page_id=%s room=%s — NOBODY LISTENING (clinician not connected or room name mismatch)",
+            cid, page_id, doctor_id,
+        )
 
     return jsonify(page), 201
 

@@ -15,5 +15,7 @@ bind = f"0.0.0.0:{os.getenv('BACKEND_PORT', '8001')}"
 loglevel = "info"
 accesslog = "-"                    # stdout
 errorlog = "-"                     # stdout
+# %(L)s appends per-request duration (seconds) so we can spot slow routes.
+access_log_format = '%(h)s "%(r)s" %(s)s %(b)s %(L)ss'
 timeout = 120
 keepalive = 5

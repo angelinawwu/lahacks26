@@ -198,7 +198,8 @@ export function FloorStack({
                 ))
               : null}
 
-            {/* Clinician dots clustered per wing */}
+            {/* Clinician dots clustered per wing — show all members; the
+                grid below auto-sizes to fit. */}
             {f.wings.flatMap((wing) => {
               const members = fClinicians.filter((c) => c.wing === wing);
               const r = wingPlaneRect(wing);

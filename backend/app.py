@@ -12,18 +12,21 @@ Runs on port 8001. The existing FastAPI service stays on port 8000.
 """
 from __future__ import annotations
 
-import logging
-import os
-import sys
+# Eventlet must monkey-patch the stdlib BEFORE anything imports `logging`,
+# `threading`, etc. — otherwise their stdlib RLocks stay un-greened and
+# eventlet warns "1 RLock(s) were not greened" at boot.
+import eventlet  # noqa: E402
+eventlet.monkey_patch()
+
+import logging  # noqa: E402
+import os  # noqa: E402
+import sys  # noqa: E402
 
 # Allow `import state` and `import routes.*` to work whether the script is
 # executed from the repo root or from inside backend/.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
-
-import eventlet  # noqa: E402 — must be imported before Flask/SocketIO
-eventlet.monkey_patch()
 
 from flask import Flask  # noqa: E402
 from flask_cors import CORS  # noqa: E402
@@ -147,7 +150,18 @@ def on_connect(auth):
 
 @socketio.on("disconnect")
 def on_disconnect():
-    _log.info("client disconnected")
+    from flask import request as _req
+    sid = getattr(_req, "sid", None)
+    rooms = []
+    if sid:
+        try:
+            rooms = sorted(
+                r for r in socketio.server.manager.get_rooms(sid, "/") or []
+                if r != sid
+            )
+        except Exception:
+            rooms = []
+    _log.info("client disconnected sid=%s rooms=%s", sid, rooms)
 
 
 @socketio.on("status_update")

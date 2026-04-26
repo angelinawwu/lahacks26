@@ -23,7 +23,7 @@ export function getBackendSocket(opts: BackendSocketOpts): Socket {
   if (existing) return existing;
 
   const socket = io(url(), {
-    transports: ["polling", "websocket"],
+    transports: ["websocket"],
     auth: {
       role: opts.role,
       clinician_id: opts.clinicianId,

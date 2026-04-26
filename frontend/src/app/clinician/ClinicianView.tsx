@@ -79,6 +79,16 @@ export function ClinicianView({ id }: { id: string }) {
       .catch(() => {});
   }, [id]);
 
+  // Ask once for Notification permission so we can pop OS-level alerts when
+  // the tab is backgrounded. Browsers gate this behind a one-time prompt.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
   // Flask :8001 socket — incoming pages + SBAR briefs for this clinician.
   useEffect(() => {
     if (!id) return;
@@ -99,6 +109,28 @@ export function ClinicianView({ id }: { id: string }) {
           ...prev,
         ].slice(0, 10),
       );
+
+      // OS-level notification so a backgrounded tab still alerts the clinician.
+      // `tag` collapses duplicates; clicking refocuses the page.
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        try {
+          const note = new Notification(`Page · ${p.priority} · ${p.room ?? "—"}`, {
+            body: p.title,
+            tag: p.alert_id,
+            requireInteraction: p.priority === "P1" || p.priority === "P2",
+          });
+          note.onclick = () => {
+            window.focus();
+            note.close();
+          };
+        } catch {
+          // Some browsers reject Notification ctor in non-secure contexts; fail soft.
+        }
+      }
     };
     const onSbar = (b: SbarBrief) => {
       setBrief(b);

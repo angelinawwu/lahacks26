@@ -138,7 +138,7 @@ def on_connect(auth):
                 "rooms": list(state.ROOMS.values()),
                 "active_pages": [
                     p for p in state.PAGES.values()
-                    if p["status"] in ("paging", "pending")
+                    if p["status"] not in ("cancelled", "expired")
                 ],
             },
         )

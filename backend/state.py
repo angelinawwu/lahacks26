@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _CLINICIANS_DB_PATH = os.path.join(_REPO_ROOT, "db", "clinicians.json")
+_PAGES_DB_PATH = os.path.join(_REPO_ROOT, "db", "pages.json")
 
 
 def _load(filename: str) -> Any:
@@ -31,6 +32,23 @@ def _load_clinicians_from_db() -> List[Dict]:
         return []
     try:
         with open(_CLINICIANS_DB_PATH, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (json.JSONDecodeError, OSError):
+        return []
+    table = raw.get("_default") or {}
+    return [dict(v) for v in table.values() if isinstance(v, dict) and "id" in v]
+
+
+def _load_pages_from_db() -> List[Dict]:
+    """Read seeded pages from TinyDB on disk (db/pages.json).
+
+    Pages are otherwise runtime-only; this lets `db/seed_pages.py` populate
+    the operator's Alert Feed, Cases Table, and Queue panel on first load.
+    """
+    if not os.path.exists(_PAGES_DB_PATH):
+        return []
+    try:
+        with open(_PAGES_DB_PATH, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
     except (json.JSONDecodeError, OSError):
         return []
@@ -64,13 +82,14 @@ PAGING_MODES: Dict[str, Any] = {
 
 def seed() -> None:
     """Load all JSON seed files into the module-level dicts."""
-    global DOCTORS, NURSES, PATIENTS, ROOMS, EHR
+    global DOCTORS, NURSES, PATIENTS, ROOMS, EHR, PAGES
 
     DOCTORS = {d["id"]: dict(d) for d in _load("doctors.json")}
     NURSES = {n["id"]: dict(n) for n in _load("nurses.json")}
     PATIENTS = {p["id"]: dict(p) for p in _load("patients.json")}
     ROOMS = {r["id"]: dict(r) for r in _load("rooms.json")}
     EHR = _load("ehr.json")
+    PAGES = {p["id"]: dict(p) for p in _load_pages_from_db()}
 
     # Merge canonical clinician roster from db/clinicians.json. That TinyDB
     # file is the source of truth for who exists; doctors.json only carries

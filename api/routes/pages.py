@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from api import shared_state as state
 from api.sio import sio
@@ -24,6 +25,137 @@ _log = logging.getLogger("medpage.pages")
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Operator page request (with EHR context + optional scheduling)
+# ---------------------------------------------------------------------------
+
+class PageRequestIn(BaseModel):
+    raw_text: str = ""
+    room: Optional[str] = None
+    priority: Optional[str] = "P2"
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    patient_age: Optional[int] = None
+    chief_complaint: Optional[str] = None
+    vitals: Optional[str] = None
+    scheduled_for: Optional[str] = None   # ISO datetime string; None = immediate
+    requested_by: Optional[str] = "operator"
+
+
+def _build_raw_text(req: PageRequestIn) -> str:
+    """Assemble a natural-language situation string from operator-supplied fields."""
+    if req.raw_text.strip():
+        return req.raw_text.strip()
+    parts: list[str] = []
+    if req.chief_complaint:
+        parts.append(req.chief_complaint)
+    if req.patient_name:
+        parts.append(f"Patient: {req.patient_name}")
+    if req.patient_age:
+        parts.append(f"Age: {req.patient_age}")
+    if req.vitals:
+        parts.append(f"Vitals: {req.vitals}")
+    if req.room:
+        parts.append(f"Location: {req.room}")
+    # Pull EHR context if available
+    if req.patient_id:
+        ehr = state.EHR.get(req.patient_id, {})
+        if ehr.get("primary_diagnosis"):
+            parts.append(f"Diagnosis: {ehr['primary_diagnosis']}")
+        if ehr.get("comorbidities"):
+            parts.append(f"Comorbidities: {', '.join(ehr['comorbidities'])}")
+    return ". ".join(parts) if parts else "Operator page request"
+
+
+async def _fire_page_request(request_id: str) -> None:
+    """Called immediately or after a scheduled delay — runs the dispatch pipeline."""
+    req_data = state.SCHEDULED_PAGES.get(request_id)
+    if not req_data:
+        return
+    req_data["status"] = "dispatching"
+    state.SCHEDULED_PAGES[request_id] = req_data
+
+    try:
+        from api.main import process_alert, _emit_dispatch_from_decision, AlertMessage  # type: ignore[import]
+    except Exception as e:
+        _log.error("page-request: agent stack unavailable: %s", e)
+        req_data["status"] = "failed"
+        state.SCHEDULED_PAGES[request_id] = req_data
+        return
+
+    if process_alert is None:
+        _log.error("page-request: process_alert not loaded")
+        req_data["status"] = "failed"
+        state.SCHEDULED_PAGES[request_id] = req_data
+        return
+
+    try:
+        msg = AlertMessage(
+            raw_text=req_data["raw_text"],
+            room=req_data.get("room"),
+            patient_id=req_data.get("patient_id"),
+            requested_by=req_data.get("requested_by", "operator"),
+        )
+        decision = await process_alert(msg)
+        await _emit_dispatch_from_decision(msg, decision)
+        req_data["status"] = "dispatched"
+        state.SCHEDULED_PAGES[request_id] = req_data
+        await sio.emit("page_dispatched", {"request_id": request_id, **req_data}, room="operators")
+    except Exception as e:
+        _log.error("page-request dispatch error: %s", e)
+        req_data["status"] = "failed"
+        state.SCHEDULED_PAGES[request_id] = req_data
+
+
+async def _schedule_and_fire(request_id: str, delay_seconds: float) -> None:
+    await asyncio.sleep(delay_seconds)
+    await _fire_page_request(request_id)
+
+
+@router.post("/api/page-request")
+async def create_page_request(req: PageRequestIn):
+    """
+    Operator submits a page request with patient context.
+    - Enriches raw_text from EHR / manual fields.
+    - If scheduled_for is set, delays dispatch until that time.
+    - Otherwise dispatches immediately via the AI pipeline.
+    """
+    request_id = uuid4().hex
+    raw_text = _build_raw_text(req)
+
+    record: dict = {
+        "request_id": request_id,
+        "raw_text": raw_text,
+        "room": req.room,
+        "priority": req.priority,
+        "patient_id": req.patient_id,
+        "patient_name": req.patient_name,
+        "requested_by": req.requested_by,
+        "created_at": _now(),
+        "scheduled_for": req.scheduled_for,
+        "status": "pending",
+    }
+    state.SCHEDULED_PAGES[request_id] = record
+
+    if req.scheduled_for:
+        try:
+            scheduled_dt = datetime.fromisoformat(req.scheduled_for.replace("Z", "+00:00"))
+            now_dt = datetime.now(timezone.utc)
+            delay = max(0.0, (scheduled_dt - now_dt).total_seconds())
+        except ValueError:
+            delay = 0.0
+
+        record["status"] = "scheduled"
+        state.SCHEDULED_PAGES[request_id] = record
+        await sio.emit("page_scheduled", record, room="operators")
+        asyncio.create_task(_schedule_and_fire(request_id, delay))
+        return record
+
+    # Immediate dispatch
+    asyncio.create_task(_fire_page_request(request_id))
+    return record
 
 
 # ---------------------------------------------------------------------------

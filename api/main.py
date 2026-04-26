@@ -184,6 +184,49 @@ async def patch_clinician(clinician_id: str, body: ClinicianPatchIn) -> dict[str
 
 
 # ---------------------------------------------------------------------------
+# REST — patient search
+# ---------------------------------------------------------------------------
+@app.get("/api/patients/search")
+def search_patients(q: str = ""):
+    """
+    Search PATIENTS + EHR by patient ID or name (case-insensitive substring).
+    Returns list of { id, name, room, primary_diagnosis, comorbidities }.
+    """
+    q_lower = q.strip().lower()
+    results = []
+    seen: set = set()
+    for pid, patient in shared_state.PATIENTS.items():
+        name = str(patient.get("name") or "").lower()
+        if not q_lower or q_lower in pid.lower() or q_lower in name:
+            ehr = shared_state.EHR.get(pid, {})
+            entry = {
+                "id": pid,
+                "name": patient.get("name") or pid,
+                "room": patient.get("room"),
+                "primary_diagnosis": ehr.get("primary_diagnosis") or patient.get("primary_diagnosis"),
+                "comorbidities": ehr.get("comorbidities") or patient.get("comorbidities") or [],
+            }
+            if pid not in seen:
+                seen.add(pid)
+                results.append(entry)
+    # Also search EHR-only records
+    for pid, ehr in shared_state.EHR.items():
+        if pid in seen:
+            continue
+        name = str(ehr.get("name") or "").lower()
+        patient_id_field = str(ehr.get("patient_id") or pid).lower()
+        if not q_lower or q_lower in pid.lower() or q_lower in name or q_lower in patient_id_field:
+            results.append({
+                "id": pid,
+                "name": ehr.get("name") or pid,
+                "room": ehr.get("room"),
+                "primary_diagnosis": ehr.get("primary_diagnosis"),
+                "comorbidities": ehr.get("comorbidities") or [],
+            })
+    return {"results": results[:20]}
+
+
+# ---------------------------------------------------------------------------
 # REST — dispatch (AI agent pipeline)
 # ---------------------------------------------------------------------------
 class AlertIn(BaseModel):

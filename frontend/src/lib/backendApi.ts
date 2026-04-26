@@ -1,6 +1,9 @@
 import type {
   AppSettings,
+  PageRequestBody,
+  PageRequestRecord,
   PagingModesState,
+  PatientResult,
   ProactiveAcked,
   QueuePage,
   QueueResponse,
@@ -115,6 +118,26 @@ export async function manualPage(body: ManualPageBody): Promise<QueuePage> {
     body: JSON.stringify({ requested_by: "operator_override", ...body }),
   });
   return jsonOrThrow<QueuePage>(r);
+}
+
+export async function searchPatients(q: string): Promise<PatientResult[]> {
+  const r = await fetch(
+    `${base()}/api/patients/search?q=${encodeURIComponent(q)}`,
+    { cache: "no-store" },
+  );
+  const data = await jsonOrThrow<{ results: PatientResult[] }>(r);
+  return data.results;
+}
+
+export async function createPageRequest(
+  body: PageRequestBody,
+): Promise<PageRequestRecord> {
+  const r = await fetch(`${base()}/api/page-request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return jsonOrThrow<PageRequestRecord>(r);
 }
 
 export async function getSettings(): Promise<AppSettings> {

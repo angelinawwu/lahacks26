@@ -134,6 +134,39 @@ export interface PagingModesState {
   page_overrides: Record<string, PagingModeEntry>;
 }
 
+export interface PatientResult {
+  id: string;
+  name: string;
+  room?: string | null;
+  primary_diagnosis?: string | null;
+  comorbidities?: string[];
+}
+
+export interface PageRequestBody {
+  raw_text?: string;
+  room?: string;
+  priority?: string;
+  patient_id?: string;
+  patient_name?: string;
+  patient_age?: number;
+  chief_complaint?: string;
+  vitals?: string;
+  scheduled_for?: string | null;
+  requested_by?: string;
+}
+
+export interface PageRequestRecord {
+  request_id: string;
+  raw_text: string;
+  room?: string | null;
+  priority?: string | null;
+  patient_id?: string | null;
+  patient_name?: string | null;
+  created_at: string;
+  scheduled_for?: string | null;
+  status: "pending" | "scheduled" | "dispatching" | "dispatched" | "failed";
+}
+
 export interface PatternSignal {
   id?: string;
   pattern_type: PatternType | string;

@@ -58,6 +58,7 @@ PAGING_MODES: Dict[str, Any] = {
 
 RECOMMENDATIONS: Dict[str, Dict[str, Any]] = {}
 BRIEFS: Dict[str, Dict[str, Any]] = {}
+SCHEDULED_PAGES: Dict[str, Dict[str, Any]] = {}  # in-memory only; keyed by request_id
 
 # ---------------------------------------------------------------------------
 # TinyDB-backed state (survives restarts)

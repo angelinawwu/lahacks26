@@ -14,6 +14,7 @@ import { getClinicians } from "@/lib/api";
 import { getQueue, getSettings } from "@/lib/backendApi";
 import { PendingApprovalRow } from "@/components/operator/PendingApprovalRow";
 import { ManualOverridePanel } from "@/components/operator/ManualOverridePanel";
+import { RequestPagePanel } from "@/components/operator/RequestPagePanel";
 import Link from "next/link";
 import { inferFloorWing } from "@/lib/floorData";
 import type { FloorId } from "@/lib/floorData";
@@ -26,6 +27,7 @@ import type {
   PriorityLevel,
 } from "@/lib/types";
 import type {
+  PageRequestRecord,
   PatternSignal,
   ProactiveRecommendation,
   QueuePage,
@@ -76,7 +78,9 @@ export default function OperatorPage() {
   const [recsOpen, setRecsOpen] = useState(false);
   const [patterns, setPatterns] = useState<PatternSignal[]>([]);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [scheduledPages, setScheduledPages] = useState<PageRequestRecord[]>([]);
 
   // Load default operator view and manual mode state once on mount
   useEffect(() => {
@@ -179,6 +183,16 @@ export default function OperatorPage() {
       setPending((prev) => prev.filter((p) => p.id !== page.id));
     };
 
+    const onPageScheduled = (record: PageRequestRecord) => {
+      setScheduledPages((prev) => {
+        const exists = prev.some((r) => r.request_id === record.request_id);
+        return exists ? prev : [record, ...prev];
+      });
+    };
+    const onPageDispatched = (record: PageRequestRecord) => {
+      setScheduledPages((prev) => prev.filter((r) => r.request_id !== record.request_id));
+    };
+
     const onSettingsUpdated = (s: { global_mode?: string }) => {
       if (s.global_mode !== undefined) setManualMode(s.global_mode === "manual");
     };
@@ -242,6 +256,8 @@ export default function OperatorPage() {
     socket.on("pattern_cleared", onPatternCleared);
     socket.on("settings_updated", onSettingsUpdated);
     socket.on("paging_modes_updated", onModesUpdated);
+    socket.on("page_scheduled", onPageScheduled);
+    socket.on("page_dispatched", onPageDispatched);
 
     getQueue()
       .then((res) => {
@@ -266,6 +282,8 @@ export default function OperatorPage() {
       socket.off("pattern_cleared", onPatternCleared);
       socket.off("settings_updated", onSettingsUpdated);
       socket.off("paging_modes_updated", onModesUpdated);
+      socket.off("page_scheduled", onPageScheduled);
+      socket.off("page_dispatched", onPageDispatched);
     };
   }, []);
 
@@ -391,6 +409,37 @@ export default function OperatorPage() {
           />
           <button
             type="button"
+            onClick={() => setRequestOpen(true)}
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              border: HAIRLINE,
+              borderRadius: 20,
+              color: "var(--color-text-secondary)",
+              background: "transparent",
+              cursor: "pointer",
+              transition: "background 200ms ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-background-secondary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            Request
+            {scheduledPages.length > 0 && (
+              <span style={{
+                marginLeft: 6,
+                background: "#3478F6",
+                color: "#fff",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "1px 6px",
+              }}>
+                {scheduledPages.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => setOverrideOpen(true)}
             style={{
               fontSize: 12,
@@ -505,6 +554,16 @@ export default function OperatorPage() {
           setOverrideOpen(false);
           upsertQueueLocal(page);
           upsertAlert(pageToAlert(page));
+        }}
+      />
+
+      <RequestPagePanel
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        onRequestCreated={(record) => {
+          if (record.scheduled_for) {
+            setScheduledPages((prev) => [record, ...prev]);
+          }
         }}
       />
 

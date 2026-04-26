@@ -60,14 +60,12 @@ _log = logging.getLogger("medpage.api")
 # ---------------------------------------------------------------------------
 app = FastAPI(title="MedPage API", version="0.3.0")
 
-_cors = os.getenv(
-    "CORS_ORIGINS",
-    "http://localhost:3000,http://127.0.0.1:3000,http://18.145.218.29,http://18.145.218.29:3000",
-).split(",")
+_cors_env = os.getenv("CORS_ORIGINS", "")
+_cors = [o.strip() for o in _cors_env.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _cors if o.strip()],
-    allow_credentials=True,
+    allow_origins=_cors if _cors else ["*"],
+    allow_credentials=bool(_cors),
     allow_methods=["*"],
     allow_headers=["*"],
 )

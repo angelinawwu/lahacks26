@@ -242,6 +242,13 @@ async def create_page(request: Request):
     requested_by = body.get("requested_by")
     backup_doctors = body.get("backup_doctors", [])
 
+    if requested_by and doctor_id == requested_by:
+        raise HTTPException(
+            status_code=400,
+            detail="cannot page self: doctor_id must differ from requested_by",
+        )
+    backup_doctors = [b for b in backup_doctors if b != requested_by]
+
     page_id = uuid4().hex
     created_at = _now()
 

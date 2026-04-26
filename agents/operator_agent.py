@@ -16,7 +16,20 @@ from typing import List, Optional, Dict, Any
 
 from dotenv import load_dotenv
 from uagents import Agent, Context, Model
-from uagents_core.contrib.protocols.chat import ChatMessage, ChatAcknowledgement
+try:
+    from uagents_core.contrib.protocols.chat import ChatMessage, ChatAcknowledgement
+    _CHAT_PROTOCOL_AVAILABLE = True
+except ImportError:
+    # Chat protocol is only needed for the standalone agent entry point
+    # (ASI:One / Agentverse). The FastAPI /dispatch path uses process_alert
+    # directly and doesn't need it.
+    _CHAT_PROTOCOL_AVAILABLE = False
+
+    class ChatMessage(Model):  # type: ignore[no-redef]
+        content: str = ""
+
+    class ChatAcknowledgement(Model):  # type: ignore[no-redef]
+        acknowledged_msg_id: str = ""
 
 from agents.models import (
     AlertMessage as OurAlertMessage,
@@ -144,8 +157,11 @@ def find_future_available_clinicians(
         
         if status == "available":
             future_available.append((cand, now))
-        elif eta and eta <= cutoff:
-            future_available.append((cand, eta))
+        elif eta:
+            # Normalize to naive (drop tzinfo) so comparison with naive `now` works.
+            eta_naive = eta.replace(tzinfo=None) if eta.tzinfo is not None else eta
+            if eta_naive <= cutoff:
+                future_available.append((cand, eta_naive))
     
     # Sort by availability time
     future_available.sort(key=lambda x: x[1])

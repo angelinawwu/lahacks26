@@ -5,8 +5,14 @@ import { AlertFeed, isAlertLive } from "@/components/AlertFeed";
 import { FloorMap } from "@/components/FloorMap";
 import { CasesTable } from "@/components/CasesTable";
 import { CountBadge } from "@/components/badges";
+import { QueuePanel } from "@/components/queue/QueuePanel";
+import { ProactiveModal } from "@/components/proactive/ProactiveModal";
+import { RecsBadge, hasCriticalRec } from "@/components/proactive/RecsBadge";
+import { CoverageBanner } from "@/components/CoverageBanner";
 import { getSocket } from "@/lib/socket";
+import { getBackendSocket } from "@/lib/backendSocket";
 import { getClinicians } from "@/lib/api";
+import { getQueue } from "@/lib/backendApi";
 import { inferFloorWing } from "@/lib/floorData";
 import type { FloorId } from "@/lib/floorData";
 import type {
@@ -19,6 +25,11 @@ import type {
   OperatorSnapshot,
   PriorityLevel,
 } from "@/lib/types";
+import type {
+  PatternSignal,
+  ProactiveRecommendation,
+  QueuePage,
+} from "@/lib/backendTypes";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -29,6 +40,14 @@ export default function OperatorPage() {
   const [selectedFloor, setSelectedFloor] = useState<FloorId | null>(null);
   const [selectedAlert, setSelectedAlert] = useState<ActiveAlert | null>(null);
 
+  // Backend (Flask :8001) state
+  const [queue, setQueue] = useState<QueuePage[]>([]);
+  const [recs, setRecs] = useState<ProactiveRecommendation[]>([]);
+  const [activeRec, setActiveRec] = useState<ProactiveRecommendation | null>(null);
+  const [recsOpen, setRecsOpen] = useState(false);
+  const [patterns, setPatterns] = useState<PatternSignal[]>([]);
+
+  // FastAPI :8000 socket (existing alert flow)
   useEffect(() => {
     getClinicians().then(setClinicians).catch(() => {});
 
@@ -77,18 +96,105 @@ export default function OperatorPage() {
     };
   }, []);
 
+  // Flask :8001 socket (queue + proactive + sbar + patterns)
+  useEffect(() => {
+    const socket = getBackendSocket({ role: "operator" });
+
+    getQueue()
+      .then((res) => setQueue(res.pages ?? []))
+      .catch(() => {});
+
+    const upsertQueue = (page: QueuePage) => {
+      setQueue((prev) => {
+        const idx = prev.findIndex((p) => p.id === page.id);
+        if (idx === -1) return [page, ...prev];
+        const copy = prev.slice();
+        copy[idx] = { ...copy[idx], ...page };
+        return copy;
+      });
+    };
+    const removeQueue = (id: string) => {
+      setQueue((prev) => prev.filter((p) => p.id !== id));
+    };
+
+    const onPaged = (page: QueuePage) => upsertQueue(page);
+    const onEscalated = (page: QueuePage) => upsertQueue(page);
+    const onCancelled = (page: QueuePage) => removeQueue(page.id);
+    const onResponse = (page: QueuePage) => {
+      // accepted / declined → drop from active queue
+      if (page.status === "accepted" || page.status === "declined") {
+        removeQueue(page.id);
+      } else {
+        upsertQueue(page);
+      }
+    };
+
+    const onProactive = (rec: ProactiveRecommendation) => {
+      setRecs((prev) => {
+        const exists = prev.some((r) => r.id === rec.id);
+        return exists ? prev.map((r) => (r.id === rec.id ? rec : r)) : [rec, ...prev];
+      });
+      if (rec.requires_ack) {
+        setActiveRec((cur) => cur ?? rec);
+      }
+    };
+    const onProactiveAcked = (data: { id: string }) => {
+      setRecs((prev) => prev.filter((r) => r.id !== data.id));
+      setActiveRec((cur) => (cur && cur.id === data.id ? null : cur));
+    };
+
+    const onPattern = (p: PatternSignal) => {
+      setPatterns((prev) => {
+        const key = (x: PatternSignal) => `${x.pattern_type}:${x.zone ?? ""}:${x.specialty ?? ""}`;
+        const k = key(p);
+        const without = prev.filter((x) => key(x) !== k);
+        return [p, ...without].slice(0, 12);
+      });
+    };
+    const onPatternCleared = (p: PatternSignal) => {
+      setPatterns((prev) =>
+        prev.filter(
+          (x) =>
+            !(x.pattern_type === p.pattern_type &&
+              (x.zone ?? "") === (p.zone ?? "") &&
+              (x.specialty ?? "") === (p.specialty ?? "")),
+        ),
+      );
+    };
+
+    socket.on("doctor_paged", onPaged);
+    socket.on("page_escalated", onEscalated);
+    socket.on("page_cancelled", onCancelled);
+    socket.on("page_response", onResponse);
+    socket.on("proactive_recommendation", onProactive);
+    socket.on("proactive_recommendation_acked", onProactiveAcked);
+    socket.on("pattern_detected", onPattern);
+    socket.on("pattern_cleared", onPatternCleared);
+
+    return () => {
+      socket.off("doctor_paged", onPaged);
+      socket.off("page_escalated", onEscalated);
+      socket.off("page_cancelled", onCancelled);
+      socket.off("page_response", onResponse);
+      socket.off("proactive_recommendation", onProactive);
+      socket.off("proactive_recommendation_acked", onProactiveAcked);
+      socket.off("pattern_detected", onPattern);
+      socket.off("pattern_cleared", onPatternCleared);
+    };
+  }, []);
+
   const liveCount = useMemo(() => alerts.filter(isAlertLive).length, [alerts]);
 
   const handleFloorSelect = (floor: FloorId) => {
     setSelectedFloor(floor);
-    setTab(1); // Switch to floor view tab
+    setTab(1);
   };
 
   const handleAlertSelect = (alert: ActiveAlert | null) => {
     setSelectedAlert(alert);
     if (alert) {
       setSelectedFloor(alert.floor);
-      setTab(1); // Switch to floor view tab when alert is selected
+      setTab(1);
     }
   };
 
@@ -126,6 +232,22 @@ export default function OperatorPage() {
     [alerts],
   );
 
+  const upsertQueueLocal = (p: QueuePage) => {
+    setQueue((prev) => {
+      const idx = prev.findIndex((x) => x.id === p.id);
+      if (p.status === "cancelled" || p.status === "accepted" || p.status === "declined") {
+        return prev.filter((x) => x.id !== p.id);
+      }
+      if (idx === -1) return [p, ...prev];
+      const copy = prev.slice();
+      copy[idx] = { ...copy[idx], ...p };
+      return copy;
+    });
+  };
+
+  const showRecsList = recsOpen && !activeRec;
+  const recToShow = activeRec ?? (showRecsList ? recs[0] ?? null : null);
+
   return (
     <div
       className="min-h-screen"
@@ -144,6 +266,15 @@ export default function OperatorPage() {
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
             UCLA Medical Center · Santa Monica
           </span>
+          <RecsBadge
+            count={recs.length}
+            hasCritical={hasCriticalRec(recs)}
+            onClick={() => {
+              if (recs.length === 0) return;
+              setActiveRec(recs[0]);
+              setRecsOpen(true);
+            }}
+          />
           <button
             type="button"
             style={{
@@ -171,11 +302,13 @@ export default function OperatorPage() {
         </TabButton>
       </div>
 
+      <CoverageBanner patterns={patterns} />
+
       {tab === 1 ? (
         <div
           className="grid"
           style={{
-            gridTemplateColumns: "1fr 320px",
+            gridTemplateColumns: "1fr 340px",
             height: "calc(100vh - 92px)",
           }}
         >
@@ -188,13 +321,49 @@ export default function OperatorPage() {
             selectedAlert={selectedAlert}
             onAlertSelect={handleAlertSelect}
           />
-          <div style={{ borderLeft: HAIRLINE }}>
-            <AlertFeed alerts={alerts} onFloorSelect={handleFloorSelect} onAlertSelect={handleAlertSelect} />
+          <div
+            style={{
+              borderLeft: HAIRLINE,
+              display: "grid",
+              gridTemplateRows: "1fr 1fr",
+              minHeight: 0,
+            }}
+          >
+            <div style={{ minHeight: 0, overflow: "hidden" }}>
+              <AlertFeed
+                alerts={alerts}
+                patterns={patterns}
+                onFloorSelect={handleFloorSelect}
+                onAlertSelect={handleAlertSelect}
+              />
+            </div>
+            <div style={{ minHeight: 0, overflow: "hidden", borderTop: HAIRLINE }}>
+              <QueuePanel pages={queue} onUpdate={upsertQueueLocal} />
+            </div>
           </div>
         </div>
       ) : (
         <CasesTable cases={alerts} onFloorSelect={handleFloorSelect} onAlertSelect={handleAlertSelect} />
       )}
+
+      {recToShow ? (
+        <ProactiveModal
+          rec={recToShow}
+          onAcked={(id) => {
+            setRecs((prev) => prev.filter((r) => r.id !== id));
+            setActiveRec((cur) => {
+              if (!cur || cur.id !== id) return cur;
+              const next = recs.find((r) => r.id !== id) ?? null;
+              return next;
+            });
+            if (recs.length <= 1) setRecsOpen(false);
+          }}
+          onDismissNonBlocking={() => {
+            setActiveRec(null);
+            setRecsOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

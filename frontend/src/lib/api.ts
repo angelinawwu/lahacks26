@@ -10,6 +10,7 @@ export async function postDispatch(body: {
   room?: string | null;
   specialty_hint?: string | null;
   patient_id?: string | null;
+  requested_by?: string | null;
 }): Promise<DispatchResult> {
   // Flask backend exposes the AI dispatch flow at /api/voice/urgent
   // (transcribe → parse → classify → page). We pass the alert text as
@@ -22,6 +23,7 @@ export async function postDispatch(body: {
       room: body.room || undefined,
       specialty_hint: body.specialty_hint || undefined,
       patient_id: body.patient_id || undefined,
+      requested_by: body.requested_by || undefined,
     }),
   });
   if (!r.ok) {

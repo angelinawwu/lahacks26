@@ -317,6 +317,9 @@ def process_case(
     _log.info(f"[case_handler] querying specialties: {specialties}, target_zone: {target_zone}")
 
     candidates = query_clinicians(db, specialties, priority)
+    # Never page the clinician who raised the alert.
+    if alert.requested_by:
+        candidates = [c for c in candidates if c.get("id") != alert.requested_by]
     _log.info(f"[case_handler] found {len(candidates)} available candidates")
 
     if not candidates:
@@ -326,6 +329,8 @@ def process_case(
             ["emergency_medicine", "internal_medicine", "surgery", "anesthesiology"],
             priority,
         )
+        if alert.requested_by:
+            candidates = [c for c in candidates if c.get("id") != alert.requested_by]
 
     scored = score_candidates(candidates, target_zone, guardrail_flags)
     resp = rank_with_asi1(alert, scored, priority)

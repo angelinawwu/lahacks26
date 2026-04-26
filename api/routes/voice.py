@@ -122,8 +122,16 @@ def _parse_transcript(text: str) -> Dict[str, Any]:
     }
 
 
-def _select_doctor(specialty_hint: Optional[str], zone: Optional[str]) -> Optional[str]:
-    candidates = [d for d in state.DOCTORS.values() if d.get("status") in ("available", "on_break")]
+def _select_doctor(
+    specialty_hint: Optional[str],
+    zone: Optional[str],
+    exclude_id: Optional[str] = None,
+) -> Optional[str]:
+    candidates = [
+        d for d in state.DOCTORS.values()
+        if d.get("status") in ("available", "on_break")
+        and (exclude_id is None or d.get("id") != exclude_id)
+    ]
     if not candidates:
         return None
 
@@ -211,10 +219,10 @@ async def voice_urgent(request: Request):
     priority = parsed.get("priority_hint", "P2")
     specialty_hint = parsed.get("specialty_hint")
 
-    doctor_id: Optional[str] = _select_doctor(specialty_hint, room)
+    doctor_id: Optional[str] = _select_doctor(specialty_hint, room, exclude_id=requested_by)
     if not doctor_id:
         for doc in state.DOCTORS.values():
-            if doc.get("status") == "available":
+            if doc.get("status") == "available" and doc.get("id") != requested_by:
                 doctor_id = doc["id"]
                 break
 

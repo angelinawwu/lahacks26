@@ -104,6 +104,7 @@ export function ClinicianPageForm({ clinicianId }: Props) {
         room: room || undefined,
         specialty_hint: specialty || undefined,
         patient_id: patientId.trim() || undefined,
+        requested_by: clinicianId,
       });
       const top = res.case?.candidates?.[0];
       setResult({

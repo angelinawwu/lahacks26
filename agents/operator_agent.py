@@ -560,8 +560,13 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     # Without the availability gate the agent could pick a doctor who is
     # off_shift / on_break / on_case / in_procedure — they'd never receive
     # the page (no socket listener), so the page silently dies.
+    # Also exclude the requester so a clinician can't be paged for an alert
+    # they themselves raised.
+    requester_id = alert.requested_by
     candidates = []
     for doc_id, doc in doctors_map.items():
+        if doc_id == requester_id:
+            continue
         if not is_clinician_available(doc, priority):
             continue
         doc_specialties = doc.get("specialty", [])
@@ -569,8 +574,10 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
             candidates.append(doc)
 
     if not candidates:
-        # Emergency fallback — still must be available
+        # Emergency fallback — still must be available, still not the requester
         for doc_id, doc in doctors_map.items():
+            if doc_id == requester_id:
+                continue
             if not is_clinician_available(doc, priority):
                 continue
             doc_specialties = doc.get("specialty", [])

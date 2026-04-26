@@ -7,9 +7,13 @@ into a single ASGI server on port 8001.
 Run from repo root:
   uvicorn api.main:asgi_app --reload --port 8001
 
-TinyDB is the canonical store for clinicians (db/clinicians.json) and
-pages (db/pages.json). Doctors/patients/rooms/EHR are seeded in-memory
-from backend/data/*.json and reset on restart.
+All hospital data lives under db/ (single source of truth):
+  db/clinicians.json   — TinyDB roster (also seeds DOCTORS)
+  db/pages.json        — TinyDB page history
+  db/ehr_records.json  — TinyDB patient EHR records
+  db/rooms.json        — plain JSON list of rooms
+Non-persistent state (PAGING_MODES, RECOMMENDATIONS, etc.) is in-memory
+and resets on restart.
 """
 from __future__ import annotations
 

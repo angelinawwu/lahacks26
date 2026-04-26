@@ -1,13 +1,19 @@
 """
 Unified in-memory + TinyDB state for the merged MedPage backend.
 
-In-memory (seeded from backend/data/*.json, resets on restart):
-  DOCTORS, NURSES, PATIENTS, ROOMS, EHR
-  PAGING_MODES, CLINICIAN_QUEUE, RECOMMENDATIONS, BRIEFS
+All data lives under db/ (single source of truth). In-memory dicts are
+seeded on startup and reset on restart for non-persistent state.
 
-TinyDB persistent:
-  CLINICIANS  — db/clinicians.json  (agent dispatch roster)
-  PAGES       — db/pages.json        (page history + active)
+TinyDB-backed (survives restarts):
+  CLINICIANS  — db/clinicians.json   (agent dispatch roster, also DOCTORS)
+  PAGES       — db/pages.json        (page history + active pages)
+  EHR         — db/ehr_records.json  (patient records, keyed by patient_id)
+
+Plain JSON (in-memory, reset on restart):
+  ROOMS       — db/rooms.json        (list of room records)
+
+Legacy in-memory dicts kept as empty defaults (NURSES, PATIENTS) so any
+stray reference resolves cleanly until those features are removed.
 """
 from __future__ import annotations
 
@@ -26,14 +32,29 @@ _BACKEND_DIR = os.path.join(_REPO_ROOT, "backend")
 if _BACKEND_DIR not in sys.path:
     sys.path.insert(0, _BACKEND_DIR)
 
-_DATA_DIR = os.path.join(_BACKEND_DIR, "data")
 _DB_DIR = os.path.join(_REPO_ROOT, "db")
 
 
 def _load_json(filename: str) -> Any:
-    path = os.path.join(_DATA_DIR, filename)
+    """Load a plain JSON file from db/."""
+    path = os.path.join(_DB_DIR, filename)
+    if not os.path.exists(path):
+        return None
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _load_tinydb_table(filename: str) -> List[Dict]:
+    """Load the `_default` table out of a TinyDB-format JSON file (db/...).
+
+    Avoids importing TinyDB just to read; the on-disk format is stable JSON.
+    Returns [] if the file is missing or malformed.
+    """
+    raw = _load_json(filename)
+    if not isinstance(raw, dict):
+        return []
+    table = raw.get("_default") or {}
+    return [dict(v) for v in table.values() if isinstance(v, dict)]
 
 
 # ---------------------------------------------------------------------------
@@ -131,43 +152,54 @@ def seed() -> None:
     """Load all seed data into module-level dicts. Safe to call multiple times."""
     global DOCTORS, NURSES, PATIENTS, ROOMS, EHR, CLINICIANS
 
-    DOCTORS = {d["id"]: dict(d) for d in _load_json("doctors.json")}
-    NURSES = {n["id"]: dict(n) for n in _load_json("nurses.json")}
-    PATIENTS = {p["id"]: dict(p) for p in _load_json("patients.json")}
-    ROOMS = {r["id"]: dict(r) for r in _load_json("rooms.json")}
-    EHR = _load_json("ehr.json")
+    # NURSES and PATIENTS are no longer seeded from JSON — the corresponding
+    # files were removed during the db/ consolidation. Keep the dicts empty
+    # so downstream code that does `state.PATIENTS.get(...)` still works.
+    NURSES = {}
+    PATIENTS = {}
 
-    # Clinicians from TinyDB (canonical agent dispatch roster)
-    CLINICIANS = {c["id"]: dict(c) for c in _get_clinicians_db().all()}
+    # Rooms remain a plain JSON list under db/rooms.json.
+    rooms_data = _load_json("rooms.json") or []
+    if isinstance(rooms_data, list):
+        ROOMS = {r["id"]: dict(r) for r in rooms_data if "id" in r}
+    else:
+        ROOMS = {}
 
-    # Merge TinyDB clinician fields into DOCTORS so the two datasets share one
-    # schema. CLINICIANS (db/clinicians.json) is the canonical roster — its
-    # identity fields (name, specialty) override DOCTORS to prevent the same
-    # id from resolving to two different people across views. Live operational
-    # fields (status, zone, on_call, shift times) are also taken from
-    # CLINICIANS when present. Runtime stats in DOCTORS (page_count_1hr,
-    # active_cases, pager_id, phone) are preserved.
-    _CANONICAL_FIELDS = ("name", "specialty", "on_call", "shift_start", "shift_end", "zone", "status")
-    for cid, clin in CLINICIANS.items():
-        if cid in DOCTORS:
-            for field in _CANONICAL_FIELDS:
-                if field in clin:
-                    DOCTORS[cid][field] = clin[field]
-        else:
-            # Clinician exists only in TinyDB (not in backend/data/doctors.json).
-            # Add a minimal DOCTORS entry so snapshot includes them.
-            DOCTORS[cid] = {
-                "id": cid,
-                "name": clin.get("name", cid),
-                "specialty": clin.get("specialty", []),
-                "status": clin.get("status", "available"),
-                "zone": clin.get("zone", ""),
-                "on_call": clin.get("on_call", False),
-                "page_count_1hr": 0,
-                "active_cases": 0,
-                **{k: v for k, v in clin.items()
-                   if k not in ("name", "specialty", "status", "zone", "on_call")},
+    # EHR lives in db/ehr_records.json (TinyDB format). Re-key by patient_id
+    # so callers can do `state.EHR.get("PT-2024-00412")` directly. Fall back
+    # to the TinyDB doc id when patient_id is missing.
+    EHR = {}
+    for rec in _load_tinydb_table("ehr_records.json"):
+        key = rec.get("patient_id") or rec.get("id")
+        if key:
+            EHR[key] = rec
+            # Also synthesize a minimal PATIENTS entry so the patient search
+            # endpoint (which iterates PATIENTS first) returns these records.
+            PATIENTS[key] = {
+                "id": key,
+                "name": rec.get("name") or key,
+                "room": rec.get("room"),
+                "primary_diagnosis": rec.get("primary_diagnosis"),
+                "comorbidities": rec.get("comorbidities") or [],
             }
+
+    # Clinicians from TinyDB are the canonical roster — also seed DOCTORS
+    # from this same source so identity is consistent across the system.
+    CLINICIANS = {c["id"]: dict(c) for c in _get_clinicians_db().all()}
+    DOCTORS = {}
+    for cid, clin in CLINICIANS.items():
+        DOCTORS[cid] = {
+            "id": cid,
+            "name": clin.get("name", cid),
+            "specialty": clin.get("specialty", []),
+            "status": clin.get("status", "available"),
+            "zone": clin.get("zone", ""),
+            "on_call": clin.get("on_call", False),
+            "page_count_1hr": 0,
+            "active_cases": 0,
+            **{k: v for k, v in clin.items()
+               if k not in ("name", "specialty", "status", "zone", "on_call")},
+        }
 
     # Pages from TinyDB (persistent history)
     load_pages()

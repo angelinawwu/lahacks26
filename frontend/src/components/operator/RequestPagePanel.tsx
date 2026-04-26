@@ -228,6 +228,16 @@ export function RequestPagePanel({ open, onClose, onRequestCreated }: Props) {
                     Searching…
                   </div>
                 )}
+                {!searching && searchQuery.trim() && !selectedPatient && searchResults.length === 0 && (
+                  <div style={{
+                    fontSize: 11,
+                    color: "var(--color-text-tertiary)",
+                    marginTop: 4,
+                    fontStyle: "italic",
+                  }}>
+                    Patient not found — switch to “Enter manually” to page without an EHR record.
+                  </div>
+                )}
                 {searchResults.length > 0 && (
                   <div style={{
                     position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10,

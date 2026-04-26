@@ -44,13 +44,29 @@ class PageRequestIn(BaseModel):
     requested_by: Optional[str] = "operator"
 
 
+def _ehr_for(patient_id: Optional[str]) -> dict:
+    """Return the EHR record for a patient_id, or {} if not found."""
+    if not patient_id:
+        return {}
+    return state.EHR.get(patient_id, {}) or {}
+
+
 def _build_raw_text(req: PageRequestIn) -> str:
-    """Assemble a natural-language situation string from operator-supplied fields."""
-    if req.raw_text.strip():
-        return req.raw_text.strip()
+    """Assemble a rich natural-language situation string for the agent.
+
+    Always prepends the operator-supplied free text (if any), then layers EHR
+    context so the priority classifier and specialty matcher have everything
+    they need. EHR fields are silently skipped when missing.
+    """
     parts: list[str] = []
+
+    # 1. Operator's free-text situation (highest signal for the classifier).
+    if req.raw_text and req.raw_text.strip():
+        parts.append(req.raw_text.strip())
+
+    # 2. Operator-entered manual fields.
     if req.chief_complaint:
-        parts.append(req.chief_complaint)
+        parts.append(f"Chief complaint: {req.chief_complaint}")
     if req.patient_name:
         parts.append(f"Patient: {req.patient_name}")
     if req.patient_age:
@@ -59,14 +75,39 @@ def _build_raw_text(req: PageRequestIn) -> str:
         parts.append(f"Vitals: {req.vitals}")
     if req.room:
         parts.append(f"Location: {req.room}")
-    # Pull EHR context if available
-    if req.patient_id:
-        ehr = state.EHR.get(req.patient_id, {})
+
+    # 3. EHR context (when patient_id resolves to a known record).
+    ehr = _ehr_for(req.patient_id)
+    if ehr:
         if ehr.get("primary_diagnosis"):
             parts.append(f"Diagnosis: {ehr['primary_diagnosis']}")
         if ehr.get("comorbidities"):
             parts.append(f"Comorbidities: {', '.join(ehr['comorbidities'])}")
+        if ehr.get("allergies"):
+            parts.append(f"Allergies: {', '.join(ehr['allergies'])}")
+        if ehr.get("assigned_team"):
+            parts.append(f"Care team: {', '.join(ehr['assigned_team'])}")
+        if ehr.get("primary_physician"):
+            parts.append(f"Primary: {ehr['primary_physician']}")
+
     return ". ".join(parts) if parts else "Operator page request"
+
+
+def _specialty_hint_for(req: PageRequestIn) -> Optional[str]:
+    """Pick a specialty hint from the EHR's assigned_team, if available.
+
+    The first item in `assigned_team` is treated as the primary specialty,
+    which steers the agent's specialty matcher directly. Returns None when no
+    EHR record exists or the field is missing — the agent will fall back to
+    parsing the free text.
+    """
+    ehr = _ehr_for(req.patient_id)
+    team = ehr.get("assigned_team") if ehr else None
+    if isinstance(team, list) and team:
+        return team[0]
+    if isinstance(team, str) and team.strip():
+        return team.strip()
+    return None
 
 
 async def _fire_page_request(request_id: str) -> None:
@@ -96,6 +137,7 @@ async def _fire_page_request(request_id: str) -> None:
             raw_text=req_data["raw_text"],
             room=req_data.get("room"),
             patient_id=req_data.get("patient_id"),
+            specialty_hint=req_data.get("specialty_hint"),
             requested_by=req_data.get("requested_by", "operator"),
         )
         decision = await process_alert(msg)
@@ -124,6 +166,8 @@ async def create_page_request(req: PageRequestIn):
     """
     request_id = uuid4().hex
     raw_text = _build_raw_text(req)
+    specialty_hint = _specialty_hint_for(req)
+    ehr_matched = bool(req.patient_id and req.patient_id in state.EHR)
 
     record: dict = {
         "request_id": request_id,
@@ -132,6 +176,8 @@ async def create_page_request(req: PageRequestIn):
         "priority": req.priority,
         "patient_id": req.patient_id,
         "patient_name": req.patient_name,
+        "specialty_hint": specialty_hint,
+        "ehr_matched": ehr_matched,
         "requested_by": req.requested_by,
         "created_at": _now(),
         "scheduled_for": req.scheduled_for,

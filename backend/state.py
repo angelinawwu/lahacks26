@@ -10,50 +10,54 @@ import json
 import os
 from typing import Any, Dict, List
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_CLINICIANS_DB_PATH = os.path.join(_REPO_ROOT, "db", "clinicians.json")
-_PAGES_DB_PATH = os.path.join(_REPO_ROOT, "db", "pages.json")
+DB_DIR = os.path.join(_REPO_ROOT, "db")
+_CLINICIANS_DB_PATH = os.path.join(DB_DIR, "clinicians.json")
+_PAGES_DB_PATH = os.path.join(DB_DIR, "pages.json")
+_EHR_DB_PATH = os.path.join(DB_DIR, "ehr_records.json")
+_ROOMS_PATH = os.path.join(DB_DIR, "rooms.json")
 
 
 def _load(filename: str) -> Any:
-    path = os.path.join(DATA_DIR, filename)
+    """Load a plain JSON file from db/."""
+    path = os.path.join(DB_DIR, filename)
+    if not os.path.exists(path):
+        return None
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def _load_clinicians_from_db() -> List[Dict]:
-    """Read the canonical clinician roster from TinyDB on disk.
-
-    Avoids importing tinydb here so the Flask backend stays independent of
-    the FastAPI service; the file format is stable JSON.
-    """
-    if not os.path.exists(_CLINICIANS_DB_PATH):
+def _load_tinydb_table(path: str) -> List[Dict]:
+    """Read the `_default` table out of a TinyDB-format JSON file."""
+    if not os.path.exists(path):
         return []
     try:
-        with open(_CLINICIANS_DB_PATH, "r", encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             raw = json.load(fh)
     except (json.JSONDecodeError, OSError):
         return []
     table = raw.get("_default") or {}
-    return [dict(v) for v in table.values() if isinstance(v, dict) and "id" in v]
+    return [dict(v) for v in table.values() if isinstance(v, dict)]
+
+
+def _load_clinicians_from_db() -> List[Dict]:
+    """Canonical clinician roster from db/clinicians.json (TinyDB format)."""
+    return [c for c in _load_tinydb_table(_CLINICIANS_DB_PATH) if "id" in c]
 
 
 def _load_pages_from_db() -> List[Dict]:
-    """Read seeded pages from TinyDB on disk (db/pages.json).
+    """Seeded pages from db/pages.json so the operator dashboard populates."""
+    return [p for p in _load_tinydb_table(_PAGES_DB_PATH) if "id" in p]
 
-    Pages are otherwise runtime-only; this lets `db/seed_pages.py` populate
-    the operator's Alert Feed, Cases Table, and Queue panel on first load.
-    """
-    if not os.path.exists(_PAGES_DB_PATH):
-        return []
-    try:
-        with open(_PAGES_DB_PATH, "r", encoding="utf-8") as fh:
-            raw = json.load(fh)
-    except (json.JSONDecodeError, OSError):
-        return []
-    table = raw.get("_default") or {}
-    return [dict(v) for v in table.values() if isinstance(v, dict) and "id" in v]
+
+def _load_ehr_from_db() -> Dict[str, Dict]:
+    """EHR records from db/ehr_records.json, keyed by patient_id."""
+    out: Dict[str, Dict] = {}
+    for rec in _load_tinydb_table(_EHR_DB_PATH):
+        key = rec.get("patient_id") or rec.get("id")
+        if key:
+            out[key] = rec
+    return out
 
 
 DOCTORS: Dict[str, Dict] = {}
@@ -81,40 +85,52 @@ PAGING_MODES: Dict[str, Any] = {
 
 
 def seed() -> None:
-    """Load all JSON seed files into the module-level dicts."""
+    """Load all seed data into module-level dicts (db/ as single source)."""
     global DOCTORS, NURSES, PATIENTS, ROOMS, EHR, PAGES
 
-    DOCTORS = {d["id"]: dict(d) for d in _load("doctors.json")}
-    NURSES = {n["id"]: dict(n) for n in _load("nurses.json")}
-    PATIENTS = {p["id"]: dict(p) for p in _load("patients.json")}
-    ROOMS = {r["id"]: dict(r) for r in _load("rooms.json")}
-    EHR = _load("ehr.json")
+    # NURSES + PATIENTS json sources were removed during db/ consolidation.
+    NURSES = {}
+    PATIENTS = {}
+
+    rooms_data = _load("rooms.json") or []
+    ROOMS = (
+        {r["id"]: dict(r) for r in rooms_data if isinstance(r, dict) and "id" in r}
+        if isinstance(rooms_data, list) else {}
+    )
+
+    EHR = _load_ehr_from_db()
+    # Synthesize PATIENTS entries from EHR so any code iterating PATIENTS
+    # still discovers our patient roster.
+    for pid, rec in EHR.items():
+        PATIENTS[pid] = {
+            "id": pid,
+            "name": rec.get("name") or pid,
+            "room": rec.get("room"),
+            "primary_diagnosis": rec.get("primary_diagnosis"),
+            "comorbidities": rec.get("comorbidities") or [],
+        }
+
     PAGES = {p["id"]: dict(p) for p in _load_pages_from_db()}
 
-    # Merge canonical clinician roster from db/clinicians.json. That TinyDB
-    # file is the source of truth for who exists; doctors.json only carries
-    # operational extras (pager_id, phone, runtime stats). Without this merge
-    # the operator snapshot omits any clinician that lives only in TinyDB.
-    _CANONICAL_FIELDS = ("name", "specialty", "on_call", "shift_start", "shift_end", "zone", "status")
+    # Clinicians from TinyDB are now the canonical doctor roster.
+    DOCTORS = {}
     for clin in _load_clinicians_from_db():
         cid = clin["id"]
-        if cid in DOCTORS:
-            for field in _CANONICAL_FIELDS:
-                if field in clin:
-                    DOCTORS[cid][field] = clin[field]
-        else:
-            DOCTORS[cid] = {
-                "id": cid,
-                "name": clin.get("name", cid),
-                "specialty": clin.get("specialty", []),
-                "status": clin.get("status", "available"),
-                "zone": clin.get("zone", ""),
-                "on_call": clin.get("on_call", False),
-                "page_count_1hr": 0,
-                "active_cases": 0,
-                **{k: v for k, v in clin.items()
-                   if k not in ("name", "specialty", "status", "zone", "on_call")},
-            }
+        DOCTORS[cid] = {
+            "id": cid,
+            "name": clin.get("name", cid),
+            "specialty": clin.get("specialty", []),
+            "status": clin.get("status", "available"),
+            "zone": clin.get("zone", ""),
+            "on_call": clin.get("on_call", False),
+            "page_count_1hr": 0,
+            "active_cases": 0,
+            **{k: v for k, v in clin.items()
+               if k not in ("name", "specialty", "status", "zone", "on_call")},
+        }
 
-    import voice_log
-    voice_log.init_db()
+    try:
+        import voice_log
+        voice_log.init_db()
+    except Exception:
+        pass

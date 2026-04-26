@@ -5,8 +5,8 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/lahacks26/backend
-Environment="PATH=/home/ubuntu/miniconda/bin"
-ExecStart=/home/ubuntu/miniconda/bin/gunicorn -c gunicorn.conf.py app:app
+Environment="PATH=/home/ubuntu/miniconda3/bin"
+ExecStart=/home/ubuntu/miniconda3/bin/gunicorn -c gunicorn.conf.py app:app
 Restart=always
 RestartSec=5
 StandardOutput=journal

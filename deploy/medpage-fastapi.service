@@ -5,8 +5,8 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/lahacks26
-Environment="PATH=/home/ubuntu/miniconda/bin"
-ExecStart=/home/ubuntu/miniconda/bin/uvicorn api.main:asgi_app --host 0.0.0.0 --port 8000
+Environment="PATH=/home/ubuntu/miniconda3/bin"
+ExecStart=/home/ubuntu/miniconda3/bin/uvicorn api.main:asgi_app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=5
 StandardOutput=journal

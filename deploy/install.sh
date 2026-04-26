@@ -8,10 +8,10 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DEPLOY_DIR="$REPO_DIR/deploy"
 
 echo "==> Installing Python deps for Flask backend..."
-/home/ubuntu/miniconda/bin/pip install -r "$REPO_DIR/backend/requirements.txt" -q
+/home/ubuntu/miniconda3/bin/pip install -r "$REPO_DIR/backend/requirements.txt" -q
 
 echo "==> Installing Python deps for FastAPI backend..."
-/home/ubuntu/miniconda/bin/pip install -r "$REPO_DIR/requirements.txt" -q
+/home/ubuntu/miniconda3/bin/pip install -r "$REPO_DIR/requirements.txt" -q
 
 echo "==> Copying systemd service files..."
 sudo cp "$DEPLOY_DIR/medpage-backend.service" /etc/systemd/system/

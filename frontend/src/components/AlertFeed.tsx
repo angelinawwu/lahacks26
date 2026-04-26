@@ -96,7 +96,7 @@ export function AlertFeed({
             key={a.alert_id}
             type="button"
             onClick={() => onSelect?.(a)}
-            className="block w-full text-left transition-colors duration-200"
+            className="block w-full text-left"
             style={{
               padding: "10px 12px",
               borderBottom: HAIRLINE,

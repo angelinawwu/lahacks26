@@ -90,8 +90,7 @@ export function CasesTable({
               return (
                 <tr
                   key={a.alert_id}
-                  className="transition-colors duration-200"
-                  onMouseEnter={(e) => {
+                                    onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--color-background-secondary)";
                   }}
                   onMouseLeave={(e) => {
@@ -146,7 +145,7 @@ export function CasesTable({
                         whiteSpace: "nowrap",
                         background: "transparent",
                         cursor: "pointer",
-                        transition: "background 200ms ease",
+                        // transition: "background 200ms ease",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = "var(--color-background-info)";

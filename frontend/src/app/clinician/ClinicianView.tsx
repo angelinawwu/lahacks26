@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ActivePageCard } from "@/components/ActivePageCard";
 import { StatusSegmented } from "@/components/StatusSegmented";
 import { SbarCard } from "@/components/sbar/SbarCard";
+import { ClinicianPageForm } from "@/components/clinician/ClinicianPageForm";
 import { PriorityBadge } from "@/components/badges";
 import { getSocket } from "@/lib/socket";
 import { getBackendSocket } from "@/lib/backendSocket";
@@ -227,6 +228,8 @@ export function ClinicianView() {
           </div>
           <StatusSegmented value={status} onChange={changeStatus} />
         </div>
+
+        <ClinicianPageForm clinicianId={id} />
 
         <div>
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>

@@ -312,6 +312,7 @@ async def respond_to_page(page_id: str, request: Request):
     if outcome not in ("accept", "decline"):
         raise HTTPException(status_code=400, detail="outcome must be 'accept' or 'decline'")
 
+    declining_doctor_id = page.get("doctor_id")
     page["outcome"] = outcome
     page["status"] = "accepted" if outcome == "accept" else "declined"
     page["responded_at"] = _now()
@@ -320,7 +321,7 @@ async def respond_to_page(page_id: str, request: Request):
     await sio.emit("page_response", page, room="operators")
 
     if outcome == "accept":
-        doc = state.DOCTORS.get(page.get("doctor_id"))
+        doc = state.DOCTORS.get(declining_doctor_id)
         if doc:
             doc["status"] = "on_case"
             await sio.emit(
@@ -328,7 +329,20 @@ async def respond_to_page(page_id: str, request: Request):
             )
         # Non-blocking brief generation
         asyncio.create_task(_generate_and_deliver_brief(dict(page)))
+        return page
 
+    # Decline path: free the declining doctor's case slot so they remain
+    # eligible for future pages, then attempt to forward to the next backup.
+    doc = state.DOCTORS.get(declining_doctor_id)
+    if doc:
+        doc["active_cases"] = max(0, int(doc.get("active_cases", 0)) - 1)
+        if doc.get("status") == "on_case":
+            doc["status"] = "available"
+        await sio.emit(
+            "doctor_status_changed", {"id": doc["id"], **doc}, room="operators"
+        )
+
+    await _escalate_to_next_doctor(page, reason="auto_decline")
     return page
 
 
@@ -635,40 +649,75 @@ def get_doctor_pending_pages(doctor_id: str):
     ]
 
 
-@router.post("/api/queue/{page_id}/escalate")
-async def manual_escalate(page_id: str, request: Request):
-    """Operator manually escalates a page to the next backup doctor."""
-    page = state.PAGES.get(page_id)
-    if not page:
-        raise HTTPException(status_code=404, detail=f"page {page_id} not found")
-    if page.get("status") not in ("paging", "pending"):
-        raise HTTPException(status_code=400, detail=f"page cannot be escalated (status={page.get('status')})")
+# Doctor states that disqualify a doctor from receiving an escalated page.
+_UNAVAILABLE_DOCTOR_STATUSES = {"on_case", "off_shift", "in_procedure", "on_break"}
 
+# Page statuses that block any further escalation (terminal outcomes).
+_TERMINAL_PAGE_STATUSES = {"accepted", "resolved", "cancelled", "expired", "rejected"}
+
+
+def _pick_next_eligible_doctor(page: dict) -> tuple[Optional[str], list[str]]:
+    """Return (next_doctor_id, remaining_backups), excluding any doctor who
+    already held this page, the requester, or anyone currently unavailable."""
     backup_doctors = list(page.get("backup_doctors", []))
-    current_doctor_id = page.get("doctor_id")
+
+    excluded: set[str] = set()
+    current = page.get("doctor_id")
+    if current:
+        excluded.add(current)
+    requested_by = page.get("requested_by")
+    if requested_by:
+        excluded.add(requested_by)
+    for hop in page.get("escalation_history", []) or []:
+        for key in ("from_doctor", "to_doctor"):
+            v = hop.get(key)
+            if v:
+                excluded.add(v)
 
     next_doctor_id: Optional[str] = None
     for i, bid in enumerate(backup_doctors):
-        if bid != current_doctor_id:
-            next_doctor_id = bid
-            backup_doctors.pop(i)
-            break
+        if bid in excluded:
+            continue
+        doc = state.DOCTORS.get(bid)
+        if not doc:
+            continue
+        if doc.get("status") in _UNAVAILABLE_DOCTOR_STATUSES:
+            continue
+        next_doctor_id = bid
+        backup_doctors.pop(i)
+        break
 
+    return next_doctor_id, backup_doctors
+
+
+async def _escalate_to_next_doctor(page: dict, *, reason: str) -> tuple[bool, str]:
+    """Pick the next eligible backup, mutate the page, persist, and emit.
+
+    Returns (True, "ok") on success or (False, <reason>) when no eligible
+    doctor is available. Caller decides how to surface the failure.
+    """
+    next_doctor_id, remaining = _pick_next_eligible_doctor(page)
     if not next_doctor_id:
-        raise HTTPException(status_code=400, detail="no backup doctors available")
+        return False, "no eligible backup doctors"
 
-    old_doctor = page["doctor_id"]
+    old_doctor = page.get("doctor_id")
+    page_id = page["id"]
     page["doctor_id"] = next_doctor_id
-    page["backup_doctors"] = backup_doctors
+    page["backup_doctors"] = remaining
     page["status"] = "escalated"
     page["escalated_at"] = _now()
     page.setdefault("escalation_history", []).append({
         "from_doctor": old_doctor,
         "to_doctor": next_doctor_id,
         "timestamp": _now(),
-        "reason": "manual_escalation",
+        "reason": reason,
     })
     state.save_page(page)
+
+    # Bump page count for the new target doctor so load metrics stay honest.
+    new_doc = state.DOCTORS.get(next_doctor_id)
+    if new_doc:
+        new_doc["page_count_1hr"] = new_doc.get("page_count_1hr", 0) + 1
 
     await sio.emit("page_escalated", page, room="operators")
     await sio.emit(
@@ -685,6 +734,24 @@ async def manual_escalate(page_id: str, request: Request):
         },
         room=next_doctor_id,
     )
+    return True, "ok"
+
+
+@router.post("/api/queue/{page_id}/escalate")
+async def manual_escalate(page_id: str, request: Request):
+    """Operator manually escalates a page to the next backup doctor."""
+    page = state.PAGES.get(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"page {page_id} not found")
+    if page.get("status") in _TERMINAL_PAGE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"page cannot be escalated (status={page.get('status')})",
+        )
+
+    ok, reason = await _escalate_to_next_doctor(page, reason="manual_escalation")
+    if not ok:
+        raise HTTPException(status_code=400, detail=reason)
 
     return page
 

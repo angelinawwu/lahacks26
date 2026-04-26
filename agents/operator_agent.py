@@ -473,26 +473,39 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     # Step 2: Determine target zone
     target_zone = get_zone_from_room(alert.room) if alert.room else "nurses_station"
 
-    # Step 3: EHR Lookup via backend API (async, with priority-based timeout)
+    # Step 3: EHR Lookup via backend API (async, with priority-based timeout).
+    # Prefer alert.patient_id when supplied (operator's Request-a-Page panel
+    # sends one for selected EHR patients) — the room→patient chain is fragile
+    # because room IDs and EHR patient IDs use different namespaces.
     ehr_data = None
     ehr_matched = False
     room_data = None
 
-    if alert.room:
+    if alert.patient_id or alert.room:
         t = time.monotonic()
         try:
-            # Use backend client which has priority-aware timeouts
-            ehr_data = await backend.lookup_ehr_by_room(alert.room, priority)
-            if ehr_data:
-                ehr_matched = True
-                # Also fetch room details for zone info
+            if alert.patient_id:
+                patient_resp = await backend.get_patient_with_ehr(
+                    alert.patient_id, priority
+                )
+                if patient_resp:
+                    # Flatten {**patient, "ehr": {...}} into a single dict so
+                    # downstream `ehr_data.get("assigned_team")` etc. works.
+                    ehr_data = {**patient_resp.get("ehr", {}), **patient_resp}
+                    ehr_matched = True
+            if not ehr_data and alert.room:
+                ehr_data = await backend.lookup_ehr_by_room(alert.room, priority)
+                if ehr_data:
+                    ehr_matched = True
+            if alert.room:
+                # Fetch room details for zone info regardless of EHR source.
                 room_data = await backend.get_room(alert.room, priority)
         except Exception as e:
             # Fallback: continue without EHR on timeout/error
             _log.warning("agent.ehr cid=%s err=%r", cid, str(e)[:120])
         _log.info(
-            "agent.ehr cid=%s room=%s matched=%s ms=%.1f",
-            cid, alert.room, ehr_matched, _ms(t),
+            "agent.ehr cid=%s patient=%s room=%s matched=%s ms=%.1f",
+            cid, alert.patient_id, alert.room, ehr_matched, _ms(t),
         )
 
     # Step 3b: Voice channel awareness — pull recent voice events that may

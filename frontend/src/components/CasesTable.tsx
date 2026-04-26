@@ -137,7 +137,11 @@ export function CasesTable({
                   <td style={tdStyle}>
                     {a.assigned_clinician_name ? (
                       <>
-                        <span style={{ fontWeight: 500 }}>{a.assigned_clinician_name}</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {a.status === "paging" || a.status === "awaiting" || a.status === "escalating"
+                            ? `Contacting ${a.assigned_clinician_name}…`
+                            : a.assigned_clinician_name}
+                        </span>
                         <br />
                         <span style={{ color: "var(--color-text-tertiary)", fontSize: 11 }}>
                           {specialtyLabel(a.specialty)}

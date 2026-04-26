@@ -129,12 +129,18 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_CLINICIANS_DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "db",
+    "clinicians.json",
+)
+
+
 @app.get("/clinicians")
 def list_clinicians() -> list[dict[str, Any]]:
     """Return the TinyDB clinician roster, keeping shared_state in sync."""
     from tinydb import TinyDB
-    from agents.case_handler import DB_PATH  # type: ignore[import]
-    db = TinyDB(DB_PATH)
+    db = TinyDB(_CLINICIANS_DB_PATH)
     items = list(db.all())
     for c in items:
         shared_state.CLINICIANS[c["id"]] = dict(c)
@@ -144,10 +150,8 @@ def list_clinicians() -> list[dict[str, Any]]:
 @app.patch("/clinicians/{clinician_id}")
 async def patch_clinician(clinician_id: str, body: ClinicianPatchIn) -> dict[str, Any]:
     """Patch a clinician in TinyDB + shared_state and notify operators."""
-    from tinydb import Query
-    from agents.case_handler import DB_PATH  # type: ignore[import]
-    from tinydb import TinyDB
-    db = TinyDB(DB_PATH)
+    from tinydb import Query, TinyDB
+    db = TinyDB(_CLINICIANS_DB_PATH)
     Q = Query()
     found = db.search(Q.id == clinician_id)
     if not found:

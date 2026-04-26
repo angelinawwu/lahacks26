@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import requests
 from flask import Blueprint, jsonify, request, current_app
 import state
 
 bp = Blueprint("pages", __name__)
 _log = logging.getLogger("medpage.pages")
+
+# FastAPI host that owns the agent dispatch pipeline (`/api/page-request`,
+# `/dispatch`). Flask proxies those routes there so the operator UI keeps
+# hitting a single origin (Flask :8001) without duplicating agent code.
+FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8000").rstrip("/")
 
 
 def _now() -> str:
@@ -161,6 +168,81 @@ def create_page():
         )
 
     return jsonify(page), 201
+
+
+@bp.post("/api/page-request")
+def proxy_page_request():
+    """Proxy to FastAPI's `/api/page-request` so the agent dispatch pipeline
+    (priority handler + case handler) handles operator-submitted requests.
+
+    Flask doesn't own that pipeline — replicating it here would mean copying
+    the EHR enrichment, scheduling, and process_alert glue. Forwarding keeps
+    the Flask origin (where CORS already lives) as the single endpoint the
+    frontend talks to.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        r = requests.post(
+            f"{FASTAPI_URL}/api/page-request",
+            json=body,
+            timeout=10,
+        )
+    except requests.RequestException as e:
+        _log.error("page-request proxy: upstream unreachable: %s", e)
+        return jsonify({"error": "agent backend unreachable", "detail": str(e)}), 502
+
+    try:
+        payload = r.json()
+    except ValueError:
+        payload = {"error": "non-json upstream response", "body": r.text}
+    return jsonify(payload), r.status_code
+
+
+@bp.post("/api/clinician/<clinician_id>/repage")
+def repage_clinician(clinician_id):
+    """Re-emit `incoming_page` for every page assigned to this clinician
+    whose status is still unaccepted (paging / pending / escalated).
+
+    Triggered when the operator clicks a clinician's name on the floor map —
+    it does NOT create a new page, it just re-pops the existing ones on the
+    clinician's screen so they can't be missed.
+    """
+    pending = [
+        p for p in state.PAGES.values()
+        if p.get("doctor_id") == clinician_id
+        and p.get("status") in ("paging", "pending", "escalated")
+    ]
+    pending.sort(key=lambda p: p.get("created_at") or "")
+
+    sio = current_app.socketio
+    cid = _cid()
+    listeners = _room_size(sio, clinician_id)
+
+    for p in pending:
+        sio.emit(
+            "incoming_page",
+            {
+                "page_id": p["id"],
+                "message": p.get("message", ""),
+                "patient_id": p.get("patient_id"),
+                "room": p.get("room"),
+                "priority": p.get("priority"),
+                "created_at": p.get("created_at"),
+                "ack_deadline_seconds": p.get("ack_deadline_seconds", 60),
+            },
+            room=clinician_id,
+        )
+
+    _log.info(
+        "page.repage cid=%s clinician=%s count=%d listeners=%d",
+        cid, clinician_id, len(pending), listeners,
+    )
+    return jsonify({
+        "clinician_id": clinician_id,
+        "repaged": len(pending),
+        "page_ids": [p["id"] for p in pending],
+        "listeners": listeners,
+    })
 
 
 @bp.post("/api/page/<page_id>/respond")

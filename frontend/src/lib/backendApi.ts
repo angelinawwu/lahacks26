@@ -72,6 +72,21 @@ export async function respondToPage(
   return jsonOrThrow<QueuePage>(r);
 }
 
+export interface RepageResult {
+  clinician_id: string;
+  repaged: number;
+  page_ids: string[];
+  listeners: number;
+}
+
+export async function repageClinician(clinicianId: string): Promise<RepageResult> {
+  const r = await fetch(`${base()}/api/clinician/${clinicianId}/repage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  return jsonOrThrow<RepageResult>(r);
+}
+
 export async function resolvePage(pageId: string): Promise<QueuePage> {
   const r = await fetch(`${base()}/api/page/${pageId}/resolve`, {
     method: "POST",

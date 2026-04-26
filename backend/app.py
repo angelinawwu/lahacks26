@@ -148,6 +148,33 @@ def on_connect(auth):
     if clinician_id:
         join_room(clinician_id)
         _log.info("clinician %s connected", clinician_id)
+        # Replay any pages already dispatched to this clinician but not yet
+        # accepted — without this, pages emitted while the tab was closed are
+        # lost forever (they were broadcast to an empty Socket.IO room).
+        pending_for_me = [
+            p for p in state.PAGES.values()
+            if p.get("doctor_id") == clinician_id
+            and p.get("status") in ("paging", "pending", "escalated")
+        ]
+        pending_for_me.sort(key=lambda p: p.get("created_at") or "")
+        for p in pending_for_me:
+            emit(
+                "incoming_page",
+                {
+                    "page_id": p["id"],
+                    "message": p.get("message", ""),
+                    "patient_id": p.get("patient_id"),
+                    "room": p.get("room"),
+                    "priority": p.get("priority"),
+                    "created_at": p.get("created_at"),
+                    "ack_deadline_seconds": p.get("ack_deadline_seconds", 60),
+                },
+            )
+        if pending_for_me:
+            _log.info(
+                "clinician %s connect-replay count=%d",
+                clinician_id, len(pending_for_me),
+            )
 
 
 @socketio.on("disconnect")

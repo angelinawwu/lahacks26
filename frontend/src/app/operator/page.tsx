@@ -11,7 +11,7 @@ import { RecsBadge, hasCriticalRec } from "@/components/proactive/RecsBadge";
 import { CoverageBanner } from "@/components/CoverageBanner";
 import { getBackendSocket } from "@/lib/backendSocket";
 import { getClinicians } from "@/lib/api";
-import { getQueue, getSettings } from "@/lib/backendApi";
+import { getQueue, getSettings, repageClinician } from "@/lib/backendApi";
 import { PendingApprovalRow } from "@/components/operator/PendingApprovalRow";
 import { ManualOverridePanel } from "@/components/operator/ManualOverridePanel";
 import { RequestPagePanel } from "@/components/operator/RequestPagePanel";
@@ -495,7 +495,9 @@ export default function OperatorPage() {
             alerts={activeAlerts}
             selectedFloor={selectedFloor}
             onFloorSelect={setSelectedFloor}
-            onClinicianClick={(id) => console.log("clinician clicked", id)}
+            onClinicianClick={(id) => {
+              repageClinician(id).catch(() => {});
+            }}
             selectedAlert={selectedAlert}
             onAlertSelect={handleAlertSelect}
           />

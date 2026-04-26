@@ -1,7 +1,9 @@
 "use client";
 
 import type { AlertEvent } from "@/lib/types";
+import type { PatternSignal } from "@/lib/backendTypes";
 import { PriorityBadge } from "./badges";
+import { PatternBadge } from "./proactive/PatternBadge";
 import { formatMMSS, useElapsedSeconds } from "@/lib/useElapsed";
 import { inferFloor, inferFloorWing } from "@/lib/floorData";
 import type { FloorId, WingId } from "@/lib/floorData";
@@ -55,13 +57,30 @@ function subText(a: AlertEvent) {
   }
 }
 
+function matchPattern(a: AlertEvent, patterns: PatternSignal[] | undefined): PatternSignal | null {
+  if (!patterns || patterns.length === 0) return null;
+  const room = (a.room ?? "").toLowerCase();
+  const specs = (a.specialty ?? []).map((s) => s.toLowerCase());
+  for (const p of patterns) {
+    const zone = (p.zone ?? "").toLowerCase();
+    const spec = (p.specialty ?? "").toLowerCase();
+    const rooms = (p.rooms ?? []).map((r) => r.toLowerCase());
+    if (zone && room && (room === zone || room.includes(zone))) return p;
+    if (rooms.length && room && rooms.some((r) => room === r || room.includes(r))) return p;
+    if (spec && specs.includes(spec)) return p;
+  }
+  return null;
+}
+
 export function AlertFeed({
   alerts,
+  patterns,
   onSelect,
   onFloorSelect,
   onAlertSelect,
 }: {
   alerts: AlertEvent[];
+  patterns?: PatternSignal[];
   onSelect?: (alert: AlertEvent) => void;
   onFloorSelect?: (floor: FloorId) => void;
   onAlertSelect?: (alert: { alert_id: string; floor: FloorId; wing: WingId; zone: string; priority: "P1" | "P2" | "P3" | "P4" } | null) => void;
@@ -97,7 +116,9 @@ export function AlertFeed({
             No alerts yet — waiting for dispatch.
           </div>
         ) : null}
-        {alerts.map((a) => (
+        {alerts.map((a) => {
+          const pattern = matchPattern(a, patterns);
+          return (
           <button
             key={a.alert_id}
             type="button"
@@ -135,17 +156,27 @@ export function AlertFeed({
               e.currentTarget.style.background = "transparent";
             }}
           >
-            <div className="flex items-start justify-between" style={{ marginBottom: 3 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>
+            <div className="flex items-start justify-between" style={{ marginBottom: 3, gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)", minWidth: 0 }}>
                 {a.title}
               </span>
-              <PriorityBadge priority={a.priority} />
+              <div className="flex items-center" style={{ gap: 4, flexShrink: 0 }}>
+                {pattern ? (
+                  <PatternBadge
+                    pattern={pattern.pattern_type}
+                    zone={pattern.zone}
+                    severity={pattern.severity}
+                  />
+                ) : null}
+                <PriorityBadge priority={a.priority} />
+              </div>
             </div>
             <div style={{ fontSize: 11, color: "var(--color-text-secondary)", lineHeight: 1.4 }}>
               {subText(a)}
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

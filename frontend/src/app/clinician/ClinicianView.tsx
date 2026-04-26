@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ActivePageCard } from "@/components/ActivePageCard";
 import { StatusSegmented } from "@/components/StatusSegmented";
+import { SbarCard } from "@/components/sbar/SbarCard";
+import { ClinicianPageForm } from "@/components/clinician/ClinicianPageForm";
 import { PriorityBadge } from "@/components/badges";
 import { getSocket } from "@/lib/socket";
+import { getBackendSocket } from "@/lib/backendSocket";
+import { getBrief } from "@/lib/backendApi";
 import { getClinicians } from "@/lib/api";
 import type {
   ClinicianRecord,
@@ -13,6 +17,7 @@ import type {
   IncomingPagePayload,
   PageResolvedPayload,
 } from "@/lib/types";
+import type { SbarBrief } from "@/lib/backendTypes";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -41,6 +46,8 @@ export function ClinicianView() {
   const [status, setStatus] = useState<ClinicianStatus>("available");
   const [current, setCurrent] = useState<IncomingPagePayload | null>(null);
   const [recent, setRecent] = useState<RecentItem[]>([]);
+  const [brief, setBrief] = useState<SbarBrief | null>(null);
+  const [acceptedId, setAcceptedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +85,33 @@ export function ClinicianView() {
     };
   }, [id]);
 
+  // Backend (Flask :8001) socket — listen for SBAR briefs delivered to this clinician
+  useEffect(() => {
+    if (!id) return;
+    const socket = getBackendSocket({ role: "clinician", clinicianId: id });
+
+    const onSbar = (b: SbarBrief) => {
+      setBrief(b);
+    };
+
+    socket.on("sbar_brief", onSbar);
+    return () => {
+      socket.off("sbar_brief", onSbar);
+    };
+  }, [id]);
+
+  // After accepting, fetch the brief if it didn't arrive via socket within ~1.5s
+  useEffect(() => {
+    if (!acceptedId) return;
+    if (brief && (brief.page_id === acceptedId || brief.alert_id === acceptedId)) return;
+    const t = window.setTimeout(() => {
+      getBrief(acceptedId)
+        .then((b) => setBrief(b))
+        .catch(() => {});
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [acceptedId, brief]);
+
   function emitResponse(response: "accept" | "decline") {
     if (!current || !id) return;
     const socket = getSocket({ role: "clinician", clinicianId: id });
@@ -89,6 +123,12 @@ export function ClinicianView() {
           : x,
       ),
     );
+    if (response === "accept") {
+      setAcceptedId(current.alert_id);
+    } else {
+      setBrief(null);
+      setAcceptedId(null);
+    }
     setCurrent(null);
   }
 
@@ -158,6 +198,14 @@ export function ClinicianView() {
             onAccept={() => emitResponse("accept")}
             onDecline={() => emitResponse("decline")}
           />
+        ) : brief ? (
+          <SbarCard
+            brief={brief}
+            onMarkRead={() => {
+              setBrief(null);
+              setAcceptedId(null);
+            }}
+          />
         ) : (
           <div
             style={{
@@ -180,6 +228,8 @@ export function ClinicianView() {
           </div>
           <StatusSegmented value={status} onChange={changeStatus} />
         </div>
+
+        <ClinicianPageForm clinicianId={id} />
 
         <div>
           <div style={{ fontSize: 11, color: "var(--color-text-secondary)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>

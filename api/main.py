@@ -80,10 +80,94 @@ def _seed_clinicians() -> None:
     STATE["clinicians"] = {c["id"]: dict(c) for c in db.all()}
 
 
+def _seed_example_alerts() -> None:
+    # Simple demo alerts spanning different floors/wings.
+    now = _now_iso()
+    demo = [
+        {
+            "alert_id": "demo-001",
+            "title": "Chest pain in ER",
+            "room": "er",
+            "priority": "P2",
+            "assigned_clinician_id": "dr_chen",
+            "assigned_clinician_name": "Dr. Sarah Chen",
+            "specialty": ["cardiology"],
+            "status": "paging",
+            "created_at": now,
+            "ack_deadline_seconds": 120,
+            "reasoning": "Potential cardiac event; cardiology needed.",
+            "guardrail_flags": [],
+        },
+        {
+            "alert_id": "demo-002",
+            "title": "Post-op pain in ICU",
+            "room": "icu",
+            "priority": "P1",
+            "assigned_clinician_id": "dr_rodriguez",
+            "assigned_clinician_name": "Dr. Miguel Rodriguez",
+            "specialty": ["cardiology", "internal_medicine"],
+            "status": "en_route",
+            "created_at": now,
+            "ack_deadline_seconds": 90,
+            "reasoning": "Critical post-op monitoring required.",
+            "guardrail_flags": [],
+        },
+        {
+            "alert_id": "demo-003",
+            "title": "Labor progression check",
+            "room": "labor_delivery",
+            "priority": "P3",
+            "assigned_clinician_id": "dr_goldberg",
+            "assigned_clinician_name": "Dr. Ethan Goldberg",
+            "specialty": ["obstetrics", "gynecology"],
+            "status": "accepted",
+            "created_at": now,
+            "ack_deadline_seconds": 180,
+            "reasoning": "Routine L&D progression assessment.",
+            "guardrail_flags": [],
+        },
+        {
+            "alert_id": "demo-004",
+            "title": "NICU desaturation",
+            "room": "nicu",
+            "priority": "P1",
+            "assigned_clinician_id": "dr_park",
+            "assigned_clinician_name": "Dr. Julia Park",
+            "specialty": ["neonatology"],
+            "status": "paging",
+            "created_at": now,
+            "ack_deadline_seconds": 60,
+            "reasoning": "Neonate oxygen saturation dropped.",
+            "guardrail_flags": [],
+        },
+        {
+            "alert_id": "demo-005",
+            "title": "Fall in orthopaedic wing",
+            "room": "ortho_unit",
+            "priority": "P2",
+            "assigned_clinician_id": "dr_robinson",
+            "assigned_clinician_name": "Dr. Thomas Robinson",
+            "specialty": ["orthopaedics"],
+            "status": "en_route",
+            "created_at": now,
+            "ack_deadline_seconds": 120,
+            "reasoning": "Patient fall; orthopaedic evaluation needed.",
+            "guardrail_flags": [],
+        },
+    ]
+    for a in demo:
+        STATE["active_cases"][a["alert_id"]] = a
+
+
 @app.on_event("startup")
 async def _on_startup() -> None:
     _seed_clinicians()
-    _log.info("MedPage API ready (clinicians=%d)", len(STATE["clinicians"]))
+    _seed_example_alerts()
+    _log.info(
+        "MedPage API ready (clinicians=%d, alerts=%d)",
+        len(STATE["clinicians"]),
+        len(STATE["active_cases"]),
+    )
 
 
 # --------------------------------------------------------------------------- #

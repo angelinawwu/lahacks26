@@ -34,8 +34,8 @@ const COS_Y = Math.cos(ISO_ANGLE_Y);
 // Floor plan dimensions in plane-space, before iso projection.
 const PLANE_W = 380;
 const PLANE_H = 160;
-const LABEL_LEFT_X = 100;
-const LABEL_W = 82;
+const LABEL_LEFT_X = 220;
+const LABEL_W = 65;
 // Vertical (z) gap between stacked floors.
 const FLOOR_GAP = 60;
 // Diagonal stagger per floor in screen-space (x shifts right as floors go up).
@@ -131,7 +131,7 @@ export function FloorStack({
         const fClinicians = clinicians.filter((c) => c.floor === f.id);
         const pulse = topPriority(fAlerts);
         const isHovered = hovered === f.id;
-        const labelAnchor = project(-PLANE_W / 2 - 8, -PLANE_H / 2 + 100, baseZ);
+        const labelAnchor = project(-PLANE_W / 2 - 8, -PLANE_H / 2 + 80, baseZ);
 
         return (
           <motion.g
@@ -174,18 +174,21 @@ export function FloorStack({
               />
             ))}
 
-            {/* Pulse outline if alerts on this floor */}
-            {pulse ? (
-              <motion.path
-                d={planePath(baseZ)}
-                fill="none"
-                stroke={PRIORITY_PULSE[pulse].color}
-                strokeWidth={2}
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: [0.3, 0.85, 0.3] }}
-                transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-              />
-            ) : null}
+            {/* Pulse outline if alerts on this floor — traced per wing */}
+            {pulse
+              ? f.wings.map((wing) => (
+                  <motion.path
+                    key={`pulse-${wing}`}
+                    d={wingPath(wing, baseZ)}
+                    fill="none"
+                    stroke={PRIORITY_PULSE[pulse].color}
+                    strokeWidth={2}
+                    initial={{ opacity: 0.3 }}
+                    animate={{ opacity: [0.3, 0.85, 0.3] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                ))
+              : null}
 
             {/* Clinician dots clustered per wing */}
             {f.wings.flatMap((wing) => {
@@ -213,21 +216,22 @@ export function FloorStack({
               });
             })}
 
-            {/* Floor label — left of the floor, right-aligned */}
+            {/* Floor label — left of the floor, tightly wrapped */}
             <g>
               <rect
-                x={LABEL_LEFT_X}
-                y={labelAnchor.y - 10}
+                x={LABEL_LEFT_X - LABEL_W}
+                y={labelAnchor.y - 8}
                 width={LABEL_W}
                 height={20}
-                rx={4}
+                rx={3}
                 fill={isHovered ? "#F1F5F9" : "#FFFFFF"}
                 stroke="#CBD5E1"
                 strokeWidth={1}
               />
               <text
-                x={LABEL_LEFT_X + LABEL_W / 2}
-                y={labelAnchor.y + 6}
+                x={LABEL_LEFT_X - LABEL_W / 2}
+                y={labelAnchor.y + 3}
+                dominantBaseline="middle"
                 textAnchor="middle"
                 style={{ fontSize: 11, fontWeight: 600, fill: "#0F172A" }}
               >

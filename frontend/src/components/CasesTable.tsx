@@ -4,6 +4,8 @@ import type { CSSProperties } from "react";
 import type { AlertEvent } from "@/lib/types";
 import { PriorityBadge, StatusChip } from "./badges";
 import { formatMMSS, useElapsedSeconds } from "@/lib/useElapsed";
+import { inferFloor } from "@/lib/floorData";
+import type { FloorId } from "@/lib/floorData";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -54,9 +56,11 @@ function CaseTimer({ a }: { a: AlertEvent }) {
 export function CasesTable({
   cases,
   onOverride,
+  onFloorSelect,
 }: {
   cases: AlertEvent[];
   onOverride?: (a: AlertEvent) => void;
+  onFloorSelect?: (floor: FloorId) => void;
 }) {
   const awaiting = cases.filter(
     (c) => c.status === "paging" || c.status === "awaiting",
@@ -90,7 +94,14 @@ export function CasesTable({
               return (
                 <tr
                   key={a.alert_id}
-                                    onMouseEnter={(e) => {
+                  onClick={() => {
+                    if (a.room && onFloorSelect) {
+                      const floor = inferFloor(a.room);
+                      onFloorSelect(floor);
+                    }
+                  }}
+                  style={{ cursor: a.room ? "pointer" : "default" }}
+                  onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--color-background-secondary)";
                   }}
                   onMouseLeave={(e) => {
@@ -135,7 +146,10 @@ export function CasesTable({
                   <td style={tdStyle}>
                     <button
                       type="button"
-                      onClick={() => onOverride?.(a)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOverride?.(a);
+                      }}
                       style={{
                         fontSize: 11,
                         color: "var(--color-text-info)",
@@ -145,7 +159,7 @@ export function CasesTable({
                         whiteSpace: "nowrap",
                         background: "transparent",
                         cursor: "pointer",
-                        // transition: "background 200ms ease",
+                        transition: "background 200ms ease",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = "var(--color-background-info)";

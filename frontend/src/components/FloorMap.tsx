@@ -18,11 +18,17 @@ const STATUS_LEGEND: { label: string; status: keyof typeof STATUS_COLORS }[] = [
 export type FloorMapProps = {
   clinicians: ClinicianPin[];
   alerts: ActiveAlert[];
+  selectedFloor?: FloorId | null;
+  onFloorSelect?: (floor: FloorId | null) => void;
   onClinicianClick?: (id: string) => void;
 };
 
-export function FloorMap({ clinicians, alerts, onClinicianClick }: FloorMapProps) {
-  const [selectedFloor, setSelectedFloor] = useState<FloorId | null>(null);
+export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onClinicianClick }: FloorMapProps) {
+  const [internalSelectedFloor, setInternalSelectedFloor] = useState<FloorId | null>(null);
+  
+  // Use external state if provided, otherwise use internal state
+  const currentFloor = selectedFloor !== undefined ? selectedFloor : internalSelectedFloor;
+  const handleFloorSelect = onFloorSelect || setInternalSelectedFloor;
 
   return (
     <div className="flex h-full w-full flex-col" style={{ background: "#F1F5F9" }}>
@@ -37,12 +43,12 @@ export function FloorMap({ clinicians, alerts, onClinicianClick }: FloorMapProps
       >
         <span style={{ fontSize: 11, color: "#64748B", marginRight: 4 }}>FLOOR</span>
         {FLOOR_IDS.map((id) => {
-          const active = selectedFloor === id;
+          const active = currentFloor === id;
           return (
             <button
               key={id}
               type="button"
-              onClick={() => setSelectedFloor(id)}
+              onClick={() => handleFloorSelect(id)}
               style={{
                 fontSize: 12,
                 fontWeight: 500,
@@ -60,10 +66,10 @@ export function FloorMap({ clinicians, alerts, onClinicianClick }: FloorMapProps
           );
         })}
         <div style={{ flex: 1 }} />
-        {selectedFloor ? (
+        {currentFloor ? (
           <button
             type="button"
-            onClick={() => setSelectedFloor(null)}
+            onClick={() => handleFloorSelect(null)}
             style={{
               fontSize: 12,
               padding: "4px 12px",
@@ -83,14 +89,14 @@ export function FloorMap({ clinicians, alerts, onClinicianClick }: FloorMapProps
       {/* Map area */}
       <div className="relative flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
-          {selectedFloor ? (
-            <div key={`plan-${selectedFloor}`} className="absolute inset-0">
+          {currentFloor ? (
+            <div key={`plan-${currentFloor}`} className="absolute inset-0">
               <FloorPlan
-                floor={selectedFloor}
+                floor={currentFloor}
                 clinicians={clinicians}
                 alerts={alerts}
                 onClinicianClick={onClinicianClick}
-                onBack={() => setSelectedFloor(null)}
+                onBack={() => handleFloorSelect(null)}
               />
             </div>
           ) : (
@@ -98,7 +104,7 @@ export function FloorMap({ clinicians, alerts, onClinicianClick }: FloorMapProps
               <FloorStack
                 clinicians={clinicians}
                 alerts={alerts}
-                onSelectFloor={setSelectedFloor}
+                onSelectFloor={handleFloorSelect}
               />
             </div>
           )}

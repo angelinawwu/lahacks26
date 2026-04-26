@@ -8,6 +8,7 @@ import { CountBadge } from "@/components/badges";
 import { getSocket } from "@/lib/socket";
 import { getClinicians } from "@/lib/api";
 import { inferFloorWing } from "@/lib/floorData";
+import type { FloorId } from "@/lib/floorData";
 import type {
   ActiveAlert,
   AlertEvent,
@@ -25,6 +26,7 @@ export default function OperatorPage() {
   const [tab, setTab] = useState<1 | 2>(1);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [clinicians, setClinicians] = useState<ClinicianRecord[]>([]);
+  const [selectedFloor, setSelectedFloor] = useState<FloorId | null>(null);
 
   useEffect(() => {
     getClinicians().then(setClinicians).catch(() => {});
@@ -75,6 +77,11 @@ export default function OperatorPage() {
   }, []);
 
   const liveCount = useMemo(() => alerts.filter(isAlertLive).length, [alerts]);
+
+  const handleFloorSelect = (floor: FloorId) => {
+    setSelectedFloor(floor);
+    setTab(1); // Switch to floor view tab
+  };
 
   const clinicianPins: ClinicianPin[] = useMemo(
     () =>
@@ -166,14 +173,16 @@ export default function OperatorPage() {
           <FloorMap
             clinicians={clinicianPins}
             alerts={activeAlerts}
+            selectedFloor={selectedFloor}
+            onFloorSelect={setSelectedFloor}
             onClinicianClick={(id) => console.log("clinician clicked", id)}
           />
           <div style={{ borderLeft: HAIRLINE }}>
-            <AlertFeed alerts={alerts} />
+            <AlertFeed alerts={alerts} onFloorSelect={handleFloorSelect} />
           </div>
         </div>
       ) : (
-        <CasesTable cases={alerts} />
+        <CasesTable cases={alerts} onFloorSelect={handleFloorSelect} />
       )}
     </div>
   );

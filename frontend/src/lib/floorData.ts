@@ -261,3 +261,9 @@ export function inferFloorWing(zone?: string | null): { floor: FloorId; wing: Wi
 
   return { floor: "3", wing: "central" };
 }
+
+// Extract just the floor ID from a room/zone string
+export function inferFloor(zone?: string | null): FloorId {
+  const { floor } = inferFloorWing(zone);
+  return floor;
+}

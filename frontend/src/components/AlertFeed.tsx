@@ -3,6 +3,8 @@
 import type { AlertEvent } from "@/lib/types";
 import { PriorityBadge } from "./badges";
 import { formatMMSS, useElapsedSeconds } from "@/lib/useElapsed";
+import { inferFloor } from "@/lib/floorData";
+import type { FloorId } from "@/lib/floorData";
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -56,9 +58,11 @@ function subText(a: AlertEvent) {
 export function AlertFeed({
   alerts,
   onSelect,
+  onFloorSelect,
 }: {
   alerts: AlertEvent[];
   onSelect?: (alert: AlertEvent) => void;
+  onFloorSelect?: (floor: FloorId) => void;
 }) {
   return (
     <div
@@ -95,7 +99,13 @@ export function AlertFeed({
           <button
             key={a.alert_id}
             type="button"
-            onClick={() => onSelect?.(a)}
+            onClick={() => {
+              onSelect?.(a);
+              if (a.room && onFloorSelect) {
+                const floor = inferFloor(a.room);
+                onFloorSelect(floor);
+              }
+            }}
             className="block w-full text-left"
             style={{
               padding: "10px 12px",

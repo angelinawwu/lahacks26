@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
@@ -25,6 +25,22 @@ PATIENTS: Dict[str, Dict] = {}
 ROOMS: Dict[str, Dict] = {}
 EHR: Dict[str, Dict] = {}
 PAGES: Dict[str, Dict] = {}   # runtime only — cleared on restart
+
+# Operator-editable clinician dispatch priority queue.
+# Keys are doctor IDs; values are queue entry dicts.
+# See routes/clinician_queue.py for the full schema.
+CLINICIAN_QUEUE: Dict[str, Dict] = {}
+
+# Paging mode configuration — global + per-zone + per-page overrides.
+# See routes/paging_modes.py for the full schema.
+PAGING_MODES: Dict[str, Any] = {
+    "global_mode": "automated",
+    "global_set_by": None,
+    "global_set_at": None,
+    "global_reason": "",
+    "zones": {},
+    "page_overrides": {},
+}
 
 
 def seed() -> None:

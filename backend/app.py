@@ -37,6 +37,10 @@ from routes.rooms import bp as rooms_bp  # noqa: E402
 from routes.pages import bp as pages_bp  # noqa: E402
 from routes.queue import bp as queue_bp  # noqa: E402
 from routes.proactive import bp as proactive_bp  # noqa: E402
+from routes.voice import bp as voice_bp  # noqa: E402
+from routes.ehr import bp as ehr_bp  # noqa: E402
+from routes.clinician_queue import bp as clinician_queue_bp  # noqa: E402
+from routes.paging_modes import bp as paging_modes_bp  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,6 +77,10 @@ app.register_blueprint(rooms_bp)
 app.register_blueprint(pages_bp)
 app.register_blueprint(queue_bp)
 app.register_blueprint(proactive_bp)
+app.register_blueprint(voice_bp)
+app.register_blueprint(ehr_bp)
+app.register_blueprint(clinician_queue_bp)
+app.register_blueprint(paging_modes_bp)
 
 # Seed at import time so Gunicorn workers have data without __main__ running
 state.seed()

@@ -39,16 +39,22 @@ const LABEL_W = 65;
 // Vertical (z) gap between stacked floors.
 const FLOOR_GAP = 60;
 // Diagonal stagger per floor in screen-space (x shifts right as floors go up).
-const STAGGER_X = 80;
+const STAGGER_X = 70;
 
 const VIEW_W = 760;
-const VIEW_H = 580;
+const VIEW_H = 600;
+// Empirical offset to vertically center the rendered content inside the
+// viewBox. The stack is asymmetric (Floor 6 has only 1 wing at the top, Floor
+// A has 5 including merle_norman at the bottom), so the natural midpoint of
+// the projected content sits ~7px above viewBox center. Nudging the projection
+// down counteracts that.
+const VIEW_Y_OFFSET = 7;
 
 // Project a (x,y,z) point to 2D using isometric matrix, centered in viewBox.
 function project(x: number, y: number, z: number) {
   const px = (x - y) * COS_Y;
   const py = (x + y) * SIN_X - z;
-  return { x: px + VIEW_W / 2, y: py + VIEW_H / 2 };
+  return { x: px + VIEW_W / 2, y: py + VIEW_H / 2 + VIEW_Y_OFFSET };
 }
 
 function topPriority(alerts: ActiveAlert[]): "P1" | "P2" | "P3" | "P4" | null {
@@ -235,7 +241,7 @@ export function FloorStack({
                 textAnchor="middle"
                 style={{ fontSize: 11, fontWeight: 600, fill: "#0F172A" }}
               >
-                {f.label.replace("Floor ", "FLOOR ")}
+                {f.label}
               </text>
             </g>
           </motion.g>

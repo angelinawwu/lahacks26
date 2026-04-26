@@ -158,6 +158,7 @@ class SentinelInsight(Model):
       - "ack_gap"                   : pages going unacknowledged
       - "coverage_hole"             : specialty has 0 available clinicians
       - "caseload_concentration"    : one clinician carrying too many cases
+      - "voice_burst"               : voice channel firing repeatedly (room/channel)
       - "off_hours_risk"            : reduced staffing window
     """
     pattern_type: str

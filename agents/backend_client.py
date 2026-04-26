@@ -222,6 +222,62 @@ class BackendClient:
         resp.raise_for_status()
         pages = resp.json()
         return [p for p in pages if p.get("status") in ("paging", "pending")]
+
+    # ========================================================================
+    # Voice Event Log — situational awareness for downstream agents
+    # ========================================================================
+
+    async def get_recent_voice_events(
+        self,
+        limit: int = 20,
+        channel: Optional[str] = None,
+        room: Optional[str] = None,
+        since_minutes: Optional[int] = None,
+    ) -> List[Dict]:
+        """
+        Pull recent voice events (newest first). Powered by the SQLite voice
+        log on the backend. Use to give agents context about what was just
+        spoken on a given channel/room.
+        """
+        params: Dict[str, Any] = {"limit": limit}
+        if channel:
+            params["channel"] = channel
+        if room:
+            params["room"] = room
+        if since_minutes is not None:
+            params["since_minutes"] = since_minutes
+        try:
+            resp = await self._standard_client.get(
+                f"{self.base_url}/api/voice/log", params=params
+            )
+            resp.raise_for_status()
+            return resp.json().get("events", [])
+        except (httpx.TimeoutException, httpx.HTTPError):
+            return []
+
+    async def get_voice_event(self, event_id: str) -> Optional[Dict]:
+        """Fetch a single voice event by id (e.g. the one that caused a page)."""
+        try:
+            resp = await self._standard_client.get(
+                f"{self.base_url}/api/voice/log/{event_id}"
+            )
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except (httpx.TimeoutException, httpx.HTTPError):
+            return None
+
+    async def get_voice_channels(self) -> List[Dict]:
+        """List voice channels with counts and last-seen timestamps."""
+        try:
+            resp = await self._standard_client.get(
+                f"{self.base_url}/api/voice/channels"
+            )
+            resp.raise_for_status()
+            return resp.json().get("channels", [])
+        except (httpx.TimeoutException, httpx.HTTPError):
+            return []
     
     # ========================================================================
     # Cache Management

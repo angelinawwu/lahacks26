@@ -27,6 +27,7 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request, current_app
 import state
+import voice_log
 
 bp = Blueprint("voice", __name__)
 _log = logging.getLogger("medpage.voice")
@@ -188,7 +189,18 @@ def transcribe():
 
     parsed = _parse_transcript(transcript)
     parsed["parsed_at"] = _now()
-    parsed["requested_by"] = body.get("requested_by")
+    requested_by = body.get("requested_by")
+    parsed["requested_by"] = requested_by
+
+    event = voice_log.log_event(
+        transcript=transcript,
+        parsed=parsed,
+        source="audio" if not body.get("transcript") else "transcript",
+        requested_by=requested_by,
+        endpoint="/api/voice/transcribe",
+    )
+    parsed["voice_event_id"] = event["id"]
+    parsed["summary"] = event["summary"]
     return jsonify(parsed)
 
 
@@ -249,6 +261,15 @@ def voice_urgent():
     page_id = uuid4().hex
     created_at = _now()
 
+    voice_event = voice_log.log_event(
+        transcript=transcript,
+        parsed={**parsed, "room": room, "patient_id": patient_id, "priority_hint": priority},
+        source="audio" if not body.get("transcript") else "transcript",
+        requested_by=requested_by,
+        endpoint="/api/voice/urgent",
+        linked_page_id=page_id,
+    )
+
     page = {
         "id": page_id,
         "source": "voice",
@@ -266,6 +287,8 @@ def voice_urgent():
         "outcome": None,
         "escalation_history": [],
         "parsed_fields": parsed,
+        "voice_event_id": voice_event["id"],
+        "voice_summary": voice_event["summary"],
     }
     state.PAGES[page_id] = page
 
@@ -296,6 +319,66 @@ def voice_urgent():
         page_id, doctor_id, priority,
     )
     return jsonify(page), 201
+
+
+# ---------------------------------------------------------------------------
+# Voice event log — read endpoints (consumed by agents + dashboards)
+# ---------------------------------------------------------------------------
+
+@bp.get("/api/voice/log")
+def voice_log_list():
+    """
+    List voice events, newest first. Query params:
+      limit         (default 50, max 500)
+      channel       filter by channel (e.g. requested_by id)
+      room          filter by detected room
+      since_minutes only events newer than N minutes ago
+    """
+    try:
+        limit = max(1, min(int(request.args.get("limit", 50)), 500))
+    except ValueError:
+        limit = 50
+    channel = request.args.get("channel") or None
+    room = request.args.get("room") or None
+    since = request.args.get("since_minutes")
+    try:
+        since_minutes = int(since) if since is not None else None
+    except ValueError:
+        since_minutes = None
+
+    events = voice_log.recent_events(
+        limit=limit,
+        channel=channel,
+        room=room,
+        since_minutes=since_minutes,
+    )
+    return jsonify({"events": events, "count": len(events)})
+
+
+@bp.get("/api/voice/log/recent")
+def voice_log_recent():
+    """Convenience endpoint — last 10 minutes of voice activity."""
+    minutes = int(request.args.get("minutes", 10))
+    events = voice_log.recent_events(limit=200, since_minutes=minutes)
+    return jsonify({
+        "events": events,
+        "count": len(events),
+        "window_minutes": minutes,
+    })
+
+
+@bp.get("/api/voice/log/<event_id>")
+def voice_log_get(event_id: str):
+    event = voice_log.get_event(event_id)
+    if not event:
+        return jsonify({"error": "not_found", "id": event_id}), 404
+    return jsonify(event)
+
+
+@bp.get("/api/voice/channels")
+def voice_log_channels():
+    """All voice channels with event counts and last-seen timestamps."""
+    return jsonify({"channels": voice_log.list_channels()})
 
 
 # ---------------------------------------------------------------------------

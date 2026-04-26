@@ -439,7 +439,7 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
     ehr_data = None
     ehr_matched = False
     room_data = None
-    
+
     if alert.room:
         try:
             # Use backend client which has priority-aware timeouts
@@ -451,6 +451,30 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
         except Exception:
             # Fallback: continue without EHR on timeout/error
             pass
+
+    # Step 3b: Voice channel awareness — pull recent voice events that may
+    # add context for this alert (same room, or same channel). Best-effort
+    # only; never blocks dispatch on failure.
+    voice_context: List[Dict[str, Any]] = []
+    try:
+        room_events = []
+        if alert.room:
+            room_events = await backend.get_recent_voice_events(
+                limit=5, room=alert.room, since_minutes=15,
+            )
+        channel_events = []
+        if alert.requested_by:
+            channel_events = await backend.get_recent_voice_events(
+                limit=5, channel=alert.requested_by, since_minutes=15,
+            )
+        seen = set()
+        for ev in room_events + channel_events:
+            ev_id = ev.get("id")
+            if ev_id and ev_id not in seen:
+                seen.add(ev_id)
+                voice_context.append(ev)
+    except Exception:
+        voice_context = []
     
     if ehr_data:
         # Enhance alert with EHR context
@@ -630,6 +654,15 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
                             "specialty_query": specialties,
                             "ehr_patient": ehr_data.get("name") if ehr_data else None,
                             "ehr_primary_physician": ehr_data.get("primary_physician") if ehr_data else None,
+                            "voice_context": [
+                                {
+                                    "id": ev.get("id"),
+                                    "channel": ev.get("channel"),
+                                    "summary": ev.get("summary"),
+                                    "created_at": ev.get("created_at"),
+                                }
+                                for ev in voice_context
+                            ],
                         }
                     ),
                     backup_doctors=backup_doctors,
@@ -665,6 +698,15 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
             "specialty_query": specialties,
             "ehr_patient": ehr_data.get("name") if ehr_data else None,
             "ehr_primary_physician": ehr_data.get("primary_physician") if ehr_data else None,
+            "voice_context": [
+                {
+                    "id": ev.get("id"),
+                    "channel": ev.get("channel"),
+                    "summary": ev.get("summary"),
+                    "created_at": ev.get("created_at"),
+                }
+                for ev in voice_context
+            ],
         },
     )
 

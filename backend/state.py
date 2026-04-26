@@ -52,3 +52,6 @@ def seed() -> None:
     PATIENTS = {p["id"]: dict(p) for p in _load("patients.json")}
     ROOMS = {r["id"]: dict(r) for r in _load("rooms.json")}
     EHR = _load("ehr.json")
+
+    import voice_log
+    voice_log.init_db()

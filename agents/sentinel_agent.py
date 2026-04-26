@@ -97,6 +97,21 @@ def _load_pages_backend() -> Optional[List[Dict[str, Any]]]:
         return None
 
 
+def _load_voice_events_backend(minutes: int = 10) -> List[Dict[str, Any]]:
+    """Pull recent voice events from the backend voice log."""
+    try:
+        import requests
+        r = requests.get(
+            f"{BACKEND_URL}/api/voice/log",
+            params={"limit": 200, "since_minutes": minutes},
+            timeout=1.0,
+        )
+        r.raise_for_status()
+        return r.json().get("events", [])
+    except Exception:
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Pattern signals
 # ---------------------------------------------------------------------------
@@ -177,6 +192,31 @@ def _signal_coverage_hole(clinicians: List[Dict]) -> Optional[Dict]:
     return None
 
 
+def _signal_voice_burst(voice_events: List[Dict]) -> Optional[Dict]:
+    """≥3 voice events in the same channel OR room in the last 10 min."""
+    if not voice_events:
+        return None
+    by_channel: Counter[str] = Counter()
+    by_room: Counter[str] = Counter()
+    for ev in voice_events:
+        ch = ev.get("channel")
+        if ch:
+            by_channel[str(ch)] += 1
+        rm = ev.get("room")
+        if rm:
+            by_room[str(rm)] += 1
+    hot_channels = [(c, n) for c, n in by_channel.items() if n >= 3]
+    hot_rooms = [(r, n) for r, n in by_room.items() if n >= 3]
+    if not hot_channels and not hot_rooms:
+        return None
+    return {
+        "total_events": len(voice_events),
+        "hot_channels": [{"channel": c, "count": n} for c, n in hot_channels],
+        "hot_rooms": [{"room": r, "count": n} for r, n in hot_rooms],
+        "window_min": 10,
+    }
+
+
 def _signal_caseload_concentration(clinicians: List[Dict]) -> Optional[Dict]:
     """Any single clinician with page_count_1hr ≥ 5 OR active_cases ≥ 4."""
     flagged = []
@@ -241,6 +281,7 @@ def _interpret_signals(signals: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             ("coverage_hole", "critical"),
             ("alert_concentration", "warning"),
             ("caseload_concentration", "warning"),
+            ("voice_burst", "warning"),
         ):
             if signals.get(key):
                 return {
@@ -287,6 +328,7 @@ async def _tick(ctx: Context):
     clinicians = _load_clinicians_backend() or _load_clinicians_local()
     pages = _load_pages_backend() or []
     alerts = _load_alerts_local()
+    voice_events = _load_voice_events_backend(minutes=10)
 
     signals: Dict[str, Any] = {}
     s = _signal_alert_concentration(alerts)
@@ -297,6 +339,8 @@ async def _tick(ctx: Context):
     if s: signals["coverage_hole"] = s
     s = _signal_caseload_concentration(clinicians)
     if s: signals["caseload_concentration"] = s
+    s = _signal_voice_burst(voice_events)
+    if s: signals["voice_burst"] = s
 
     if not signals:
         ctx.logger.debug("[sentinel] tick: all clear")

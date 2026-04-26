@@ -6,3 +6,6 @@ venv/
 .DS_Store
 *.log
 .env.local
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm

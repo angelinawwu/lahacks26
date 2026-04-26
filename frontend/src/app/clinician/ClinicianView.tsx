@@ -8,7 +8,7 @@ import { SbarCard } from "@/components/sbar/SbarCard";
 import { ClinicianPageForm } from "@/components/clinician/ClinicianPageForm";
 import { PriorityBadge } from "@/components/badges";
 import { getBackendSocket } from "@/lib/backendSocket";
-import { getBrief, respondToPage } from "@/lib/backendApi";
+import { getBrief, resolvePage, respondToPage } from "@/lib/backendApi";
 import { getClinicians } from "@/lib/api";
 import type {
   ClinicianRecord,
@@ -138,11 +138,24 @@ export function ClinicianView({ id }: { id: string }) {
     );
     if (response === "accept") {
       setAcceptedId(pageId);
+      setStatus("on_case");
     } else {
       setBrief(null);
       setAcceptedId(null);
     }
     setCurrent(null);
+  }
+
+  function resolveCurrent() {
+    if (!acceptedId) return;
+    const pageId = acceptedId;
+    resolvePage(pageId).catch(() => {});
+    setRecent((prev) =>
+      prev.map((x) => (x.alert_id === pageId ? { ...x, outcome: "resolved" } : x)),
+    );
+    setBrief(null);
+    setAcceptedId(null);
+    setStatus("available");
   }
 
   function changeStatus(next: ClinicianStatus) {
@@ -228,6 +241,7 @@ export function ClinicianView({ id }: { id: string }) {
               setBrief(null);
               setAcceptedId(null);
             }}
+            onResolve={resolveCurrent}
           />
         ) : (
           <div

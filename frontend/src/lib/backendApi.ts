@@ -69,6 +69,14 @@ export async function respondToPage(
   return jsonOrThrow<QueuePage>(r);
 }
 
+export async function resolvePage(pageId: string): Promise<QueuePage> {
+  const r = await fetch(`${base()}/api/page/${pageId}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  return jsonOrThrow<QueuePage>(r);
+}
+
 export async function getSettings(): Promise<AppSettings> {
   const r = await fetch(`${base()}/api/settings`, { cache: "no-store" });
   return jsonOrThrow<AppSettings>(r);

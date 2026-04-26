@@ -43,9 +43,11 @@ function wordCountColor(count: number): { bg: string; fg: string } {
 export function SbarCard({
   brief,
   onMarkRead,
+  onResolve,
 }: {
   brief: SbarBrief;
   onMarkRead?: () => void;
+  onResolve?: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const sections: SbarSections = brief.sections ?? parseSbar(brief.brief_text);
@@ -235,6 +237,31 @@ export function SbarCard({
           >
             Mark as read
           </button>
+        ) : null}
+        {onResolve ? (
+          <a
+            role="button"
+            tabIndex={0}
+            onClick={onResolve}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onResolve();
+              }
+            }}
+            style={{
+              fontSize: 11,
+              color: "var(--color-text-info)",
+              padding: "3px 10px",
+              borderRadius: 20,
+              cursor: "pointer",
+              fontWeight: 500,
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+            }}
+          >
+            Resolve page
+          </a>
         ) : null}
       </div>
     </section>

@@ -40,7 +40,7 @@ function pageToAlert(page: QueuePage): AlertEvent {
         ? "declined"
         : page.status === "escalated"
           ? "escalating"
-          : page.status === "cancelled"
+          : page.status === "cancelled" || page.status === "resolved"
             ? "resolved"
             : "paging";
   return {
@@ -136,7 +136,11 @@ export default function OperatorPage() {
     const onPageResponse = (page: QueuePage) => {
       const a = pageToAlert(page);
       upsertAlert(a);
-      if (page.status === "accepted" || page.status === "declined") {
+      if (
+        page.status === "accepted" ||
+        page.status === "declined" ||
+        page.status === "resolved"
+      ) {
         removeQueue(page.id);
       } else {
         upsertQueue(page);

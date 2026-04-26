@@ -141,12 +141,66 @@ def respond_to_page(page_id):
     sio = current_app.socketio
     sio.emit("page_response", page, room="operators")
 
+    # Reflect the doctor's accepted assignment in their live status so the
+    # operator dashboard sees them transition out of the available pool. The
+    # symmetric flip back to "available" happens in /api/page/<id>/resolve.
+    if outcome == "accept":
+        doc = state.DOCTORS.get(page.get("doctor_id"))
+        if doc:
+            doc["status"] = "on_case"
+            sio.emit("doctor_status_changed", {"id": doc["id"], **doc}, room="operators")
+
     # On accept: trigger the Operator Agent's Brief skill in the background.
     if outcome == "accept":
         try:
             sio.start_background_task(_generate_and_deliver_brief, page)
         except Exception as e:
             current_app.logger.warning(f"brief task spawn failed: {e}")
+
+    return jsonify(page)
+
+
+@bp.post("/api/page/<page_id>/resolve")
+def resolve_page(page_id):
+    """
+    Mark a page as resolved (the doctor finished the case).
+
+    Side effects:
+      - Updates page record: status="resolved", outcome="resolved",
+        resolved_at=<now>
+      - Flips the doctor's status back to "available" and decrements
+        active_cases (floor 0)
+      - Emits `page_response`           → operators room (page row)
+      - Emits `page_resolved`           → clinician room (lightweight payload)
+      - Emits `doctor_status_changed`   → operators room
+    """
+    page = state.PAGES.get(page_id)
+    if not page:
+        return jsonify({"error": "page not found", "id": page_id}), 404
+
+    if page.get("status") == "resolved":
+        return jsonify(page)
+
+    page["status"] = "resolved"
+    page["outcome"] = "resolved"
+    page["resolved_at"] = _now()
+
+    sio = current_app.socketio
+
+    doc_id = page.get("doctor_id")
+    doc = state.DOCTORS.get(doc_id) if doc_id else None
+    if doc:
+        doc["status"] = "available"
+        doc["active_cases"] = max(0, int(doc.get("active_cases", 0)) - 1)
+        sio.emit("doctor_status_changed", {"id": doc["id"], **doc}, room="operators")
+
+    sio.emit("page_response", page, room="operators")
+    if doc_id:
+        sio.emit(
+            "page_resolved",
+            {"page_id": page_id, "alert_id": page_id, "outcome": "resolved"},
+            room=doc_id,
+        )
 
     return jsonify(page)
 

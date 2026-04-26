@@ -1,6 +1,6 @@
 import type { PriorityLevel } from "./types";
 
-export type QueueStatus = "paging" | "pending" | "escalated" | "accepted" | "declined" | "expired" | "cancelled";
+export type QueueStatus = "paging" | "pending" | "escalated" | "accepted" | "declined" | "expired" | "cancelled" | "resolved";
 
 export interface EscalationEntry {
   from_doctor: string | null;

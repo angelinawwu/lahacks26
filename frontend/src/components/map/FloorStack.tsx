@@ -200,7 +200,7 @@ export function FloorStack({
 
             {/* Clinician dots clustered per wing */}
             {f.wings.flatMap((wing) => {
-              const members = fClinicians.filter((c) => c.wing === wing).slice(0, 6);
+              const members = fClinicians.filter((c) => c.wing === wing);
               const r = wingPlaneRect(wing);
               const cols = Math.max(1, Math.ceil(Math.sqrt(members.length)));
               const rows = Math.max(1, Math.ceil(members.length / cols));

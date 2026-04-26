@@ -1,6 +1,7 @@
 import type { ClinicianRecord, DispatchResult } from "./types";
 
 const base = () =>
+  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   "http://127.0.0.1:8001";
 

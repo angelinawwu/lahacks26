@@ -1,23 +1,44 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { ActivePageCard } from "@/components/ActivePageCard";
 import { StatusSegmented } from "@/components/StatusSegmented";
 import { SbarCard } from "@/components/sbar/SbarCard";
 import { ClinicianPageForm } from "@/components/clinician/ClinicianPageForm";
 import { PriorityBadge } from "@/components/badges";
-import { getSocket } from "@/lib/socket";
 import { getBackendSocket } from "@/lib/backendSocket";
-import { getBrief } from "@/lib/backendApi";
+import { getBrief, respondToPage } from "@/lib/backendApi";
 import { getClinicians } from "@/lib/api";
 import type {
   ClinicianRecord,
   ClinicianStatus,
   IncomingPagePayload,
-  PageResolvedPayload,
 } from "@/lib/types";
 import type { SbarBrief } from "@/lib/backendTypes";
+
+// Flask `incoming_page` payload shape.
+interface FlaskIncomingPage {
+  page_id: string;
+  message?: string;
+  patient_id?: string | null;
+  room?: string | null;
+  priority: string;
+  created_at: string;
+  ack_deadline_seconds?: number;
+}
+
+function toIncomingPayload(p: FlaskIncomingPage): IncomingPagePayload {
+  return {
+    alert_id: p.page_id,
+    title: p.message || p.room || `Page ${p.page_id.slice(0, 6)}`,
+    room: p.room ?? null,
+    priority: p.priority,
+    reasoning: p.message ?? "",
+    created_at: p.created_at,
+    ack_deadline_seconds: p.ack_deadline_seconds ?? 60,
+  };
+}
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
@@ -39,9 +60,7 @@ function timeAgo(iso: string): string {
   return `${hr}h ago`;
 }
 
-export function ClinicianView() {
-  const params = useSearchParams();
-  const id = params.get("id") ?? "";
+export function ClinicianView({ id }: { id: string }) {
   const [me, setMe] = useState<ClinicianRecord | null>(null);
   const [status, setStatus] = useState<ClinicianStatus>("available");
   const [current, setCurrent] = useState<IncomingPagePayload | null>(null);
@@ -60,42 +79,35 @@ export function ClinicianView() {
       .catch(() => {});
   }, [id]);
 
-  useEffect(() => {
-    if (!id) return;
-    const socket = getSocket({ role: "clinician", clinicianId: id });
-
-    const onIncoming = (p: IncomingPagePayload) => {
-      setCurrent(p);
-      setRecent((prev) =>
-        [{ alert_id: p.alert_id, title: p.title, priority: p.priority, outcome: "incoming" as const, at: p.created_at }, ...prev].slice(0, 10),
-      );
-    };
-    const onResolved = (r: PageResolvedPayload) => {
-      setCurrent((cur) => (cur && cur.alert_id === r.alert_id ? null : cur));
-      setRecent((prev) =>
-        prev.map((x) => (x.alert_id === r.alert_id ? { ...x, outcome: r.outcome } : x)),
-      );
-    };
-
-    socket.on("incoming_page", onIncoming);
-    socket.on("page_resolved", onResolved);
-    return () => {
-      socket.off("incoming_page", onIncoming);
-      socket.off("page_resolved", onResolved);
-    };
-  }, [id]);
-
-  // Backend (Flask :8001) socket — listen for SBAR briefs delivered to this clinician
+  // Flask :8001 socket — incoming pages + SBAR briefs for this clinician.
   useEffect(() => {
     if (!id) return;
     const socket = getBackendSocket({ role: "clinician", clinicianId: id });
 
+    const onIncoming = (raw: FlaskIncomingPage) => {
+      const p = toIncomingPayload(raw);
+      setCurrent(p);
+      setRecent((prev) =>
+        [
+          {
+            alert_id: p.alert_id,
+            title: p.title,
+            priority: p.priority,
+            outcome: "incoming" as const,
+            at: p.created_at,
+          },
+          ...prev,
+        ].slice(0, 10),
+      );
+    };
     const onSbar = (b: SbarBrief) => {
       setBrief(b);
     };
 
+    socket.on("incoming_page", onIncoming);
     socket.on("sbar_brief", onSbar);
     return () => {
+      socket.off("incoming_page", onIncoming);
       socket.off("sbar_brief", onSbar);
     };
   }, [id]);
@@ -114,17 +126,18 @@ export function ClinicianView() {
 
   function emitResponse(response: "accept" | "decline") {
     if (!current || !id) return;
-    const socket = getSocket({ role: "clinician", clinicianId: id });
-    socket.emit("page_response", { alert_id: current.alert_id, clinician_id: id, response });
+    const pageId = current.alert_id;
+    // Flask exposes responses via REST; fire-and-forget for snappy UI.
+    respondToPage(pageId, response).catch(() => {});
     setRecent((prev) =>
       prev.map((x) =>
-        x.alert_id === current.alert_id
+        x.alert_id === pageId
           ? { ...x, outcome: response === "accept" ? "accepted" : "declined" }
           : x,
       ),
     );
     if (response === "accept") {
-      setAcceptedId(current.alert_id);
+      setAcceptedId(pageId);
     } else {
       setBrief(null);
       setAcceptedId(null);
@@ -135,7 +148,7 @@ export function ClinicianView() {
   function changeStatus(next: ClinicianStatus) {
     setStatus(next);
     if (!id) return;
-    const socket = getSocket({ role: "clinician", clinicianId: id });
+    const socket = getBackendSocket({ role: "clinician", clinicianId: id });
     socket.emit("status_update", { clinician_id: id, status: next });
   }
 
@@ -145,8 +158,11 @@ export function ClinicianView() {
   if (!id) {
     return (
       <div style={{ padding: 24, fontSize: 13, color: "var(--color-text-danger)" }}>
-        Missing <code>?id=</code> query param. Try{" "}
-        <a href="/clinician?id=dr_chen" style={{ textDecoration: "underline" }}>/clinician?id=dr_chen</a>.
+        Missing clinician id. Try{" "}
+        <Link href="/clinician" style={{ textDecoration: "underline" }}>
+          the clinician directory
+        </Link>
+        .
       </div>
     );
   }
@@ -164,6 +180,13 @@ export function ClinicianView() {
         className="flex items-center justify-between"
         style={{ padding: "12px 16px", borderBottom: HAIRLINE, background: "var(--color-background-primary)" }}
       >
+        <Link
+          href="/clinician"
+          style={{ fontSize: 12, color: "var(--color-text-secondary)", textDecoration: "none" }}
+          aria-label="Back to clinician directory"
+        >
+          ← Directory
+        </Link>
         <span style={{ fontSize: 15, fontWeight: 600 }}>Polaris</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{displayName}</span>

@@ -9,10 +9,10 @@ import { QueuePanel } from "@/components/queue/QueuePanel";
 import { ProactiveModal } from "@/components/proactive/ProactiveModal";
 import { RecsBadge, hasCriticalRec } from "@/components/proactive/RecsBadge";
 import { CoverageBanner } from "@/components/CoverageBanner";
-import { getSocket } from "@/lib/socket";
 import { getBackendSocket } from "@/lib/backendSocket";
 import { getClinicians } from "@/lib/api";
-import { getQueue } from "@/lib/backendApi";
+import { getQueue, getSettings } from "@/lib/backendApi";
+import Link from "next/link";
 import { inferFloorWing } from "@/lib/floorData";
 import type { FloorId } from "@/lib/floorData";
 import type {
@@ -21,8 +21,6 @@ import type {
   ClinicianPin,
   ClinicianRecord,
   ClinicianStatus,
-  ClinicianStatusChanged,
-  OperatorSnapshot,
   PriorityLevel,
 } from "@/lib/types";
 import type {
@@ -33,7 +31,35 @@ import type {
 
 const HAIRLINE = "0.5px solid var(--color-border-tertiary)";
 
+// Map a Flask page record into the AlertEvent shape used by the operator UI.
+function pageToAlert(page: QueuePage): AlertEvent {
+  const status: AlertEvent["status"] =
+    page.status === "accepted"
+      ? "accepted"
+      : page.status === "declined"
+        ? "declined"
+        : page.status === "escalated"
+          ? "escalating"
+          : page.status === "cancelled"
+            ? "resolved"
+            : "paging";
+  return {
+    alert_id: page.id,
+    title: page.message || page.room || page.id,
+    room: page.room ?? null,
+    priority: page.priority,
+    assigned_clinician_id: page.doctor_id ?? null,
+    assigned_clinician_name: page.doctor?.name,
+    specialty: page.doctor?.specialty,
+    status,
+    created_at: page.created_at,
+    ack_deadline_seconds: page.timeout_seconds ?? 60,
+    responded_at: page.responded_at ?? undefined,
+  };
+}
+
 export default function OperatorPage() {
+  const [defaultViewLoaded, setDefaultViewLoaded] = useState(false);
   const [tab, setTab] = useState<1 | 2>(1);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [clinicians, setClinicians] = useState<ClinicianRecord[]>([]);
@@ -47,63 +73,32 @@ export default function OperatorPage() {
   const [recsOpen, setRecsOpen] = useState(false);
   const [patterns, setPatterns] = useState<PatternSignal[]>([]);
 
-  // FastAPI :8000 socket (existing alert flow)
+  // Load default operator view once on mount
+  useEffect(() => {
+    if (defaultViewLoaded) return;
+    getSettings()
+      .then((s) => {
+        setTab(s.default_operator_view === "feed" ? 2 : 1);
+      })
+      .catch(() => {})
+      .finally(() => setDefaultViewLoaded(true));
+  }, [defaultViewLoaded]);
+
+  // Flask :8001 socket — sole backend connection (alerts, queue, proactive, patterns).
   useEffect(() => {
     getClinicians().then(setClinicians).catch(() => {});
 
-    const socket = getSocket({ role: "operator" });
-
-    const onSnapshot = (snap: OperatorSnapshot) => {
-      if (Array.isArray(snap?.active_cases)) setAlerts(snap.active_cases.reverse());
-      if (Array.isArray(snap?.clinicians)) setClinicians(snap.clinicians);
-    };
-    const onAlertCreated = (a: AlertEvent) => {
-      setAlerts((prev) => [a, ...prev.filter((x) => x.alert_id !== a.alert_id)]);
-      if (a.assigned_clinician_id) {
-        setClinicians((prev) =>
-          prev.map((c) =>
-            c.id === a.assigned_clinician_id ? { ...c, status: "paging" } : c,
-          ),
-        );
-      }
-    };
-    const onAlertUpdated = (a: AlertEvent) => {
-      setAlerts((prev) => prev.map((x) => (x.alert_id === a.alert_id ? { ...x, ...a } : x)));
-      if (a.assigned_clinician_id && (a.status === "accepted" || a.status === "en_route")) {
-        setClinicians((prev) =>
-          prev.map((c) =>
-            c.id === a.assigned_clinician_id ? { ...c, status: "on_case" } : c,
-          ),
-        );
-      }
-    };
-    const onClinicianChanged = (e: ClinicianStatusChanged) => {
-      setClinicians((prev) =>
-        prev.map((c) => (c.id === e.clinician_id ? { ...c, status: e.status, zone: e.zone ?? c.zone } : c)),
-      );
-    };
-
-    socket.on("snapshot", onSnapshot);
-    socket.on("alert_created", onAlertCreated);
-    socket.on("alert_updated", onAlertUpdated);
-    socket.on("clinician_status_changed", onClinicianChanged);
-
-    return () => {
-      socket.off("snapshot", onSnapshot);
-      socket.off("alert_created", onAlertCreated);
-      socket.off("alert_updated", onAlertUpdated);
-      socket.off("clinician_status_changed", onClinicianChanged);
-    };
-  }, []);
-
-  // Flask :8001 socket (queue + proactive + sbar + patterns)
-  useEffect(() => {
     const socket = getBackendSocket({ role: "operator" });
 
-    getQueue()
-      .then((res) => setQueue(res.pages ?? []))
-      .catch(() => {});
-
+    const upsertAlert = (a: AlertEvent) => {
+      setAlerts((prev) => {
+        const idx = prev.findIndex((x) => x.alert_id === a.alert_id);
+        if (idx === -1) return [a, ...prev];
+        const copy = prev.slice();
+        copy[idx] = { ...copy[idx], ...a };
+        return copy;
+      });
+    };
     const upsertQueue = (page: QueuePage) => {
       setQueue((prev) => {
         const idx = prev.findIndex((p) => p.id === page.id);
@@ -117,16 +112,59 @@ export default function OperatorPage() {
       setQueue((prev) => prev.filter((p) => p.id !== id));
     };
 
-    const onPaged = (page: QueuePage) => upsertQueue(page);
-    const onEscalated = (page: QueuePage) => upsertQueue(page);
-    const onCancelled = (page: QueuePage) => removeQueue(page.id);
-    const onResponse = (page: QueuePage) => {
-      // accepted / declined → drop from active queue
+    const onSnapshot = (snap: {
+      doctors?: ClinicianRecord[];
+      active_pages?: QueuePage[];
+    }) => {
+      if (Array.isArray(snap?.doctors)) setClinicians(snap.doctors);
+      if (Array.isArray(snap?.active_pages)) {
+        setAlerts(snap.active_pages.map(pageToAlert).reverse());
+      }
+    };
+    const onPaged = (page: QueuePage) => {
+      const a = pageToAlert(page);
+      upsertAlert(a);
+      upsertQueue(page);
+      if (a.assigned_clinician_id) {
+        setClinicians((prev) =>
+          prev.map((c) =>
+            c.id === a.assigned_clinician_id ? { ...c, status: "paging" } : c,
+          ),
+        );
+      }
+    };
+    const onPageResponse = (page: QueuePage) => {
+      const a = pageToAlert(page);
+      upsertAlert(a);
       if (page.status === "accepted" || page.status === "declined") {
         removeQueue(page.id);
       } else {
         upsertQueue(page);
       }
+      if (a.assigned_clinician_id && a.status === "accepted") {
+        setClinicians((prev) =>
+          prev.map((c) =>
+            c.id === a.assigned_clinician_id ? { ...c, status: "on_case" } : c,
+          ),
+        );
+      }
+    };
+    const onPageEscalated = (page: QueuePage) => {
+      upsertAlert(pageToAlert(page));
+      upsertQueue(page);
+    };
+    const onPageCancelled = (page: QueuePage) => {
+      upsertAlert(pageToAlert(page));
+      removeQueue(page.id);
+    };
+    const onDoctorChanged = (e: { id: string; status?: string; zone?: string }) => {
+      setClinicians((prev) =>
+        prev.map((c) =>
+          c.id === e.id
+            ? { ...c, status: (e.status as ClinicianStatus) ?? c.status, zone: e.zone ?? c.zone }
+            : c,
+        ),
+      );
     };
 
     const onProactive = (rec: ProactiveRecommendation) => {
@@ -162,20 +200,32 @@ export default function OperatorPage() {
       );
     };
 
+    socket.on("snapshot", onSnapshot);
     socket.on("doctor_paged", onPaged);
-    socket.on("page_escalated", onEscalated);
-    socket.on("page_cancelled", onCancelled);
-    socket.on("page_response", onResponse);
+    socket.on("page_response", onPageResponse);
+    socket.on("page_escalated", onPageEscalated);
+    socket.on("page_cancelled", onPageCancelled);
+    socket.on("doctor_status_changed", onDoctorChanged);
     socket.on("proactive_recommendation", onProactive);
     socket.on("proactive_recommendation_acked", onProactiveAcked);
     socket.on("pattern_detected", onPattern);
     socket.on("pattern_cleared", onPatternCleared);
 
+    getQueue()
+      .then((res) => {
+        const pages = res.pages ?? [];
+        setQueue(pages);
+        setAlerts((prev) => (prev.length > 0 ? prev : pages.map(pageToAlert).reverse()));
+      })
+      .catch(() => {});
+
     return () => {
+      socket.off("snapshot", onSnapshot);
       socket.off("doctor_paged", onPaged);
-      socket.off("page_escalated", onEscalated);
-      socket.off("page_cancelled", onCancelled);
-      socket.off("page_response", onResponse);
+      socket.off("page_response", onPageResponse);
+      socket.off("page_escalated", onPageEscalated);
+      socket.off("page_cancelled", onPageCancelled);
+      socket.off("doctor_status_changed", onDoctorChanged);
       socket.off("proactive_recommendation", onProactive);
       socket.off("proactive_recommendation_acked", onProactiveAcked);
       socket.off("pattern_detected", onPattern);
@@ -266,6 +316,34 @@ export default function OperatorPage() {
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
             UCLA Medical Center · Santa Monica
           </span>
+          <Link
+            href="/clinician"
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              border: HAIRLINE,
+              borderRadius: 20,
+              color: "var(--color-text-secondary)",
+              textDecoration: "none",
+              transition: "background 200ms ease",
+            }}
+          >
+            Clinicians
+          </Link>
+          <Link
+            href="/settings"
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              border: HAIRLINE,
+              borderRadius: 20,
+              color: "var(--color-text-secondary)",
+              textDecoration: "none",
+              transition: "background 200ms ease",
+            }}
+          >
+            Settings
+          </Link>
           <RecsBadge
             count={recs.length}
             hasCritical={hasCriticalRec(recs)}

@@ -100,6 +100,30 @@ export interface SbarBrief {
 // Pattern detection (operator decoration)                                      //
 // --------------------------------------------------------------------------- //
 
+export interface AppSettings {
+  max_pages_per_hour: number;
+  require_on_call: boolean;
+  allow_off_shift: boolean;
+  default_operator_view: "map" | "feed";
+  global_mode: "automated" | "manual";
+}
+
+export interface PagingModeEntry {
+  mode: "automated" | "manual";
+  set_by?: string | null;
+  set_at?: string | null;
+  reason?: string;
+}
+
+export interface PagingModesState {
+  global_mode: "automated" | "manual";
+  global_set_by?: string | null;
+  global_set_at?: string | null;
+  global_reason?: string;
+  zones: Record<string, PagingModeEntry>;
+  page_overrides: Record<string, PagingModeEntry>;
+}
+
 export interface PatternSignal {
   id?: string;
   pattern_type: PatternType | string;

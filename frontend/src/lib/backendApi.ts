@@ -1,4 +1,11 @@
-import type { ProactiveAcked, QueuePage, QueueResponse, SbarBrief } from "./backendTypes";
+import type {
+  AppSettings,
+  PagingModesState,
+  ProactiveAcked,
+  QueuePage,
+  QueueResponse,
+  SbarBrief,
+} from "./backendTypes";
 
 const base = () =>
   process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ||
@@ -48,4 +55,48 @@ export async function ackProactive(
 export async function getBrief(pageId: string): Promise<SbarBrief> {
   const r = await fetch(`${base()}/api/brief/${pageId}`, { cache: "no-store" });
   return jsonOrThrow<SbarBrief>(r);
+}
+
+export async function respondToPage(
+  pageId: string,
+  outcome: "accept" | "decline",
+): Promise<QueuePage> {
+  const r = await fetch(`${base()}/api/page/${pageId}/respond`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ outcome }),
+  });
+  return jsonOrThrow<QueuePage>(r);
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const r = await fetch(`${base()}/api/settings`, { cache: "no-store" });
+  return jsonOrThrow<AppSettings>(r);
+}
+
+export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
+  const r = await fetch(`${base()}/api/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return jsonOrThrow<AppSettings>(r);
+}
+
+export async function getPagingModes(): Promise<PagingModesState> {
+  const r = await fetch(`${base()}/api/paging-modes`, { cache: "no-store" });
+  return jsonOrThrow<PagingModesState>(r);
+}
+
+export async function setGlobalPagingMode(
+  mode: "automated" | "manual",
+  operatorId = "operator",
+  reason = "",
+): Promise<{ global_mode: "automated" | "manual" }> {
+  const r = await fetch(`${base()}/api/paging-modes/global`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode, operator_id: operatorId, reason }),
+  });
+  return jsonOrThrow(r);
 }

@@ -8,10 +8,10 @@ MedPage is a realtime AI-driven hospital paging system. Clinical alerts are clas
 |---------|-----|
 | **Operator Dashboard** | http://18.145.218.29/operator |
 | **Clinician View** | http://18.145.218.29/clinician?id=dr_chen |
-| **FastAPI REST + Socket.IO** | http://18.145.218.29:8000 |
+| **FastAPI REST** (dispatch + clinicians) | http://18.145.218.29:8000 |
 | **FastAPI via nginx** | http://18.145.218.29/fastapi/ |
-| **Flask Management API** | http://18.145.218.29/api/ |
-| **Socket.IO** (nginx) | http://18.145.218.29/socket.io/ |
+| **Flask Management API + Socket.IO** | http://18.145.218.29/api/ |
+| **Socket.IO** (nginx → Flask) | http://18.145.218.29/socket.io/ |
 
 ### Key API Endpoints
 
@@ -63,11 +63,15 @@ Browser
   │                     ├─ priority_handler    classify P1–P4
   │                     ├─ case_handler        rank clinicians (ASI-1 + heuristics)
   │                     └─ backend_client      POST /api/page → Flask
-  │                                              └─ Flask Socket.IO → clinician
   │
-  └─ Socket.IO → port 8000 → FastAPI Socket.IO
-                   alert_created, dispatch_decision, incoming_page,
-                   page_resolved, alert_updated, clinician_status_changed
+  ├─ REST  → NEXT_PUBLIC_BACKEND_URL (port 8001) → Flask
+  │              /api/queue, /api/doctors, /api/page/<id>/respond,
+  │              /api/proactive, /api/brief/<id>, /api/settings, ...
+  │
+  └─ Socket.IO → NEXT_PUBLIC_BACKEND_URL (port 8001) → Flask Socket.IO
+                   snapshot, doctor_paged, page_response, page_escalated,
+                   page_cancelled, doctor_status_changed, incoming_page,
+                   sbar_brief, proactive_recommendation, pattern_detected
 
 nginx (port 80)
   /api/       → Flask  :8001
@@ -155,8 +159,8 @@ python run_all.py
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BACKEND_URL` | `http://127.0.0.1:8001` | Flask backend URL (used by agents) |
-| `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | FastAPI URL (used by frontend) |
-| `NEXT_PUBLIC_SOCKET_URL` | `http://127.0.0.1:8000` | Socket.IO URL (used by frontend) |
+| `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | FastAPI URL — frontend uses for `POST /dispatch` and clinician roster |
+| `NEXT_PUBLIC_BACKEND_URL` | `http://127.0.0.1:8001` | Flask URL — frontend uses for `/api/*` REST and Socket.IO |
 | `CORS_ORIGINS` | `http://localhost:3000,...` | Allowed CORS origins for FastAPI |
 | `CLINICIANS_DB` | `db/clinicians.json` | TinyDB path for clinician data |
 | `AUTONOMY_CONFIG` | `config/autonomy_config.json` | Zone/priority autonomy policy |

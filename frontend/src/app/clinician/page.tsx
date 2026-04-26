@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { ClinicianView } from "./ClinicianView";
+import { ClinicianDirectory } from "./ClinicianDirectory";
 
 export default function ClinicianPage() {
   return (
     <Suspense fallback={null}>
-      <ClinicianView />
+      <ClinicianDirectory />
     </Suspense>
   );
 }

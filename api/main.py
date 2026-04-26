@@ -29,9 +29,19 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from agents.models import AlertMessage, DispatchDecision  # noqa: E402
-from agents.operator_agent import process_alert  # noqa: E402
 from agents.case_handler import DB_PATH  # noqa: E402
 from tinydb import TinyDB  # noqa: E402
+
+# operator_agent pulls in uagents_core.contrib (only available on Python 3.10+).
+# Import lazily so /clinicians and /health work even when the agent stack
+# isn't installed — only /dispatch will fail in that case.
+try:
+    from agents.operator_agent import process_alert  # noqa: E402
+except Exception as _exc:  # pragma: no cover — environment-dependent
+    process_alert = None  # type: ignore[assignment]
+    logging.getLogger("medpage.api").warning(
+        "operator_agent unavailable — /dispatch disabled (%s)", _exc,
+    )
 
 _log = logging.getLogger("medpage.api")
 
@@ -207,6 +217,50 @@ def list_clinicians() -> list[dict[str, Any]]:
     for c in items:
         STATE["clinicians"][c["id"]] = dict(c)
     return items
+
+
+class ClinicianPatchIn(BaseModel):
+    on_call: Optional[bool] = None
+    shift_start: Optional[str] = None
+    shift_end: Optional[str] = None
+    status: Optional[str] = None
+    zone: Optional[str] = None
+
+
+@app.patch("/clinicians/{clinician_id}")
+async def patch_clinician(clinician_id: str, body: ClinicianPatchIn) -> dict[str, Any]:
+    from tinydb import Query  # local import — avoid top-level coupling
+
+    db = TinyDB(DB_PATH)
+    Q = Query()
+    found = db.search(Q.id == clinician_id)
+    if not found:
+        return {"error": "clinician not found", "id": clinician_id}
+
+    record = dict(found[0])
+    updates: Dict[str, Any] = {}
+    for field in ("on_call", "shift_start", "shift_end", "status", "zone"):
+        val = getattr(body, field)
+        if val is not None:
+            updates[field] = val
+            record[field] = val
+
+    if updates:
+        db.update(updates, Q.id == clinician_id)
+        STATE["clinicians"][clinician_id] = record
+        await sio.emit(
+            "clinician_status_changed",
+            {
+                "clinician_id": clinician_id,
+                "status": record.get("status"),
+                "zone": record.get("zone"),
+                "on_call": record.get("on_call"),
+                "shift_start": record.get("shift_start"),
+                "shift_end": record.get("shift_end"),
+            },
+            room="operators",
+        )
+    return record
 
 
 @app.get("/active-cases")

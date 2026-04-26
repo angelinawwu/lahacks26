@@ -33,3 +33,27 @@ export async function getClinicians(): Promise<ClinicianRecord[]> {
   }
   return r.json() as Promise<ClinicianRecord[]>;
 }
+
+export interface ClinicianPatch {
+  on_call?: boolean;
+  shift_start?: string | null;
+  shift_end?: string | null;
+  status?: string;
+  zone?: string;
+}
+
+export async function patchClinician(
+  id: string,
+  patch: ClinicianPatch,
+): Promise<ClinicianRecord> {
+  const r = await fetch(`${base()}/clinicians/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(t || r.statusText);
+  }
+  return r.json() as Promise<ClinicianRecord>;
+}

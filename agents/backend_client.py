@@ -57,33 +57,30 @@ class BackendClient:
     async def get_all_doctors(self, use_cache: bool = True) -> List[Dict]:
         """Fetch all doctors with optional caching for speed."""
         cache_key = "doctors_all"
-        
+
         if use_cache and self._is_cache_valid(cache_key):
             return _cache[cache_key]
-        
-        async with self._standard_client as client:
-            resp = await client.get(f"{self.base_url}/api/doctors")
-            resp.raise_for_status()
-            doctors = resp.json()
-            
-            if use_cache:
-                self._set_cache(cache_key, doctors)
-            return doctors
+
+        resp = await self._standard_client.get(f"{self.base_url}/api/doctors")
+        resp.raise_for_status()
+        doctors = resp.json()
+
+        if use_cache:
+            self._set_cache(cache_key, doctors)
+        return doctors
     
     async def get_doctor(self, doctor_id: str, priority: Optional[str] = None) -> Optional[Dict]:
         """Fetch single doctor by ID - fast path for urgent priorities."""
         client = self._client_for_priority(priority)
-        
-        async with client:
-            try:
-                resp = await client.get(f"{self.base_url}/api/doctors/{doctor_id}")
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.TimeoutException:
-                # Fallback: return cached or None
-                return _cache.get(f"doctor_{doctor_id}")
+
+        try:
+            resp = await client.get(f"{self.base_url}/api/doctors/{doctor_id}")
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.TimeoutException:
+            return _cache.get(f"doctor_{doctor_id}")
     
     async def update_doctor_status(
         self, 
@@ -101,15 +98,13 @@ class BackendClient:
         if on_call is not None:
             payload["on_call"] = on_call
         
-        async with self._standard_client as client:
-            resp = await client.patch(
-                f"{self.base_url}/api/doctors/{doctor_id}/status",
-                json=payload
-            )
-            resp.raise_for_status()
-            # Invalidate cache
-            self._invalidate_cache("doctors_all")
-            return resp.json()
+        resp = await self._standard_client.patch(
+            f"{self.base_url}/api/doctors/{doctor_id}/status",
+            json=payload
+        )
+        resp.raise_for_status()
+        self._invalidate_cache("doctors_all")
+        return resp.json()
     
     # ========================================================================
     # Room & Patient Operations (with EHR)
@@ -118,22 +113,20 @@ class BackendClient:
     async def get_room(self, room_id: str, priority: Optional[str] = None) -> Optional[Dict]:
         """Fetch room with current patient - critical for EHR lookup."""
         client = self._client_for_priority(priority)
-        
+
         # Handle different room ID formats
         formatted_room = room_id if room_id.startswith("room_") else f"room_{room_id}"
-        
-        async with client:
-            try:
-                resp = await client.get(f"{self.base_url}/api/rooms/{formatted_room}")
-                if resp.status_code == 404:
-                    # Try without prefix
-                    resp = await client.get(f"{self.base_url}/api/rooms/{room_id}")
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.TimeoutException:
+
+        try:
+            resp = await client.get(f"{self.base_url}/api/rooms/{formatted_room}")
+            if resp.status_code == 404:
+                resp = await client.get(f"{self.base_url}/api/rooms/{room_id}")
+            if resp.status_code == 404:
                 return None
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.TimeoutException:
+            return None
     
     async def get_patient_with_ehr(
         self, 
@@ -142,16 +135,15 @@ class BackendClient:
     ) -> Optional[Dict]:
         """Fetch patient merged with full EHR (medications, labs, vitals, notes)."""
         client = self._client_for_priority(priority)
-        
-        async with client:
-            try:
-                resp = await client.get(f"{self.base_url}/api/patients/{patient_id}")
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.TimeoutException:
+
+        try:
+            resp = await client.get(f"{self.base_url}/api/patients/{patient_id}")
+            if resp.status_code == 404:
                 return None
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.TimeoutException:
+            return None
     
     async def lookup_ehr_by_room(
         self, 
@@ -205,36 +197,31 @@ class BackendClient:
             payload["requested_by"] = requested_by
         
         # Pages are always urgent - use fast client
-        async with self._urgent_client as client:
-            try:
-                resp = await client.post(
-                    f"{self.base_url}/api/page",
-                    json=payload
-                )
-                resp.raise_for_status()
-                return resp.json()
-            except httpx.TimeoutException:
-                # Page failed - critical error
-                return {"error": "timeout", "status": "failed"}
-    
-    async def respond_to_page(self, page_id: str, outcome: str) -> Optional[Dict]:
-        """Record doctor's response to a page."""
-        async with self._standard_client as client:
-            resp = await client.post(
-                f"{self.base_url}/api/page/{page_id}/respond",
-                json={"outcome": outcome}
+        try:
+            resp = await self._urgent_client.post(
+                f"{self.base_url}/api/page",
+                json=payload
             )
             resp.raise_for_status()
             return resp.json()
+        except httpx.TimeoutException:
+            return {"error": "timeout", "status": "failed"}
+    
+    async def respond_to_page(self, page_id: str, outcome: str) -> Optional[Dict]:
+        """Record doctor's response to a page."""
+        resp = await self._standard_client.post(
+            f"{self.base_url}/api/page/{page_id}/respond",
+            json={"outcome": outcome}
+        )
+        resp.raise_for_status()
+        return resp.json()
     
     async def get_active_pages(self) -> List[Dict]:
         """Get all active/pending pages for operator dashboard."""
-        async with self._standard_client as client:
-            resp = await client.get(f"{self.base_url}/api/pages")
-            resp.raise_for_status()
-            pages = resp.json()
-            # Filter to active only
-            return [p for p in pages if p.get("status") in ("paging", "pending")]
+        resp = await self._standard_client.get(f"{self.base_url}/api/pages")
+        resp.raise_for_status()
+        pages = resp.json()
+        return [p for p in pages if p.get("status") in ("paging", "pending")]
     
     # ========================================================================
     # Cache Management

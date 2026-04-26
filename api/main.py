@@ -28,9 +28,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from agents.models import AlertMessage, PriorityResponse, CaseResponse  # noqa: E402
-from agents.priority_handler import classify  # noqa: E402
-from agents.case_handler import process_case, DB_PATH  # noqa: E402
+from agents.models import AlertMessage, DispatchDecision  # noqa: E402
+from agents.operator_agent import process_alert  # noqa: E402
+from agents.case_handler import DB_PATH  # noqa: E402
 from tinydb import TinyDB  # noqa: E402
 
 _log = logging.getLogger("medpage.api")
@@ -222,14 +222,13 @@ async def dispatch(alert: AlertIn) -> DispatchOut:
         mode=alert.mode,
         requested_by=alert.requested_by,
     )
-    pr: PriorityResponse = classify(msg)
-    case: CaseResponse = process_case(msg, pr.priority, pr.guardrail_flags)
-    out = await _emit_dispatch(msg, pr, case)
+    decision: DispatchDecision = await process_alert(msg)
+    out = await _emit_dispatch_from_decision(msg, decision)
     return DispatchOut(alert_id=out["alert_id"], priority=out["priority"], case=out["case"])
 
 
 # --------------------------------------------------------------------------- #
-# Realtime emit helper                                                         #
+# Realtime emit helpers                                                        #
 # --------------------------------------------------------------------------- #
 def _title_for(alert: AlertMessage) -> str:
     text = (alert.raw_text or "").strip()
@@ -239,33 +238,47 @@ def _title_for(alert: AlertMessage) -> str:
     return snippet[:60]
 
 
-async def _emit_dispatch(
+async def _emit_dispatch_from_decision(
     alert: AlertMessage,
-    pr: PriorityResponse,
-    case: CaseResponse,
+    decision: DispatchDecision,
 ) -> Dict[str, Any]:
     alert_id = uuid4().hex
     created_at = _now_iso()
-    top = case.candidates[0] if case.candidates else None
 
     record = {
         "alert_id": alert_id,
         "title": _title_for(alert),
         "room": alert.room,
-        "priority": pr.priority,
-        "assigned_clinician_id": top.id if top else None,
-        "assigned_clinician_name": top.name if top else None,
-        "specialty": top.specialty if top else [],
-        "status": "paging" if top else "queued",
+        "priority": decision.priority,
+        "assigned_clinician_id": decision.selected_clinician_id,
+        "assigned_clinician_name": decision.selected_clinician_name,
+        "specialty": decision.details.get("specialty_query", []),
+        "status": "paging" if decision.selected_clinician_id else "queued",
         "created_at": created_at,
         "ack_deadline_seconds": 60,
-        "reasoning": top.reasoning if top else case.reasoning,
-        "guardrail_flags": pr.guardrail_flags,
+        "reasoning": decision.reasoning,
+        "guardrail_flags": decision.guardrail_flags,
+        "needs_operator_review": decision.needs_operator_review,
+        "ehr_matched": decision.ehr_matched,
+        "time_queued": decision.time_queued,
+        "autonomy_mode": decision.autonomy_mode,
+        "mode": decision.mode,
     }
     STATE["active_cases"][alert_id] = record
 
-    pr_dump = _model_dump(pr)
-    case_dump = _model_dump(case)
+    pr_dump = {
+        "priority": decision.priority,
+        "guardrail_flags": decision.guardrail_flags,
+        "reasoning": decision.details.get("priority_handler_reasoning", decision.reasoning),
+        "fallback_used": False,
+    }
+    case_dump = {
+        "candidates": [],
+        "specialty_query": decision.details.get("specialty_query", []),
+        "total_available": decision.details.get("candidates_count", 0),
+        "reasoning": decision.details.get("case_handler_reasoning", decision.reasoning),
+        "fallback_used": False,
+    }
 
     await sio.emit("alert_created", record, room="operators")
     await sio.emit(
@@ -273,19 +286,19 @@ async def _emit_dispatch(
         {"alert_id": alert_id, "priority": pr_dump, "case": case_dump},
         room="operators",
     )
-    if top:
+    if decision.selected_clinician_id:
         await sio.emit(
             "incoming_page",
             {
                 "alert_id": alert_id,
                 "title": record["title"],
                 "room": alert.room,
-                "priority": pr.priority,
-                "reasoning": top.reasoning,
+                "priority": decision.priority,
+                "reasoning": decision.reasoning,
                 "created_at": created_at,
                 "ack_deadline_seconds": 60,
             },
-            room=top.id,
+            room=decision.selected_clinician_id,
         )
 
     return {"alert_id": alert_id, "priority": pr_dump, "case": case_dump}

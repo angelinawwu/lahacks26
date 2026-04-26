@@ -1,6 +1,6 @@
 import type { PriorityLevel } from "./types";
 
-export type QueueStatus = "paging" | "pending" | "escalated" | "accepted" | "declined" | "expired" | "cancelled" | "resolved";
+export type QueueStatus = "paging" | "pending" | "pending_approval" | "escalated" | "accepted" | "declined" | "expired" | "cancelled" | "resolved" | "rejected";
 
 export interface EscalationEntry {
   from_doctor: string | null;
@@ -37,6 +37,16 @@ export interface QueuePage {
   doctor?: QueueDoctor;
   escalated_at?: string;
   cancelled_at?: string;
+  rejected_at?: string;
+  approved_at?: string;
+  // Dispatch-specific fields (set when source === "dispatch")
+  title?: string;
+  assigned_clinician_name?: string;
+  specialty?: string[];
+  reasoning?: string;
+  guardrail_flags?: string[];
+  needs_operator_review?: boolean;
+  source?: "dispatch" | string;
 }
 
 export interface QueueResponse {

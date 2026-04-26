@@ -77,6 +77,46 @@ export async function resolvePage(pageId: string): Promise<QueuePage> {
   return jsonOrThrow<QueuePage>(r);
 }
 
+export async function approvePage(
+  pageId: string,
+  overrideDoctorId?: string,
+): Promise<QueuePage> {
+  const body: Record<string, string> = {};
+  if (overrideDoctorId) body.override_doctor_id = overrideDoctorId;
+  const r = await fetch(`${base()}/api/page/${pageId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return jsonOrThrow<QueuePage>(r);
+}
+
+export async function rejectPage(pageId: string): Promise<QueuePage> {
+  const r = await fetch(`${base()}/api/page/${pageId}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  return jsonOrThrow<QueuePage>(r);
+}
+
+export interface ManualPageBody {
+  doctor_id: string;
+  message: string;
+  priority?: string;
+  room?: string;
+  patient_id?: string;
+  requested_by?: string;
+}
+
+export async function manualPage(body: ManualPageBody): Promise<QueuePage> {
+  const r = await fetch(`${base()}/api/page`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ requested_by: "operator_override", ...body }),
+  });
+  return jsonOrThrow<QueuePage>(r);
+}
+
 export async function getSettings(): Promise<AppSettings> {
   const r = await fetch(`${base()}/api/settings`, { cache: "no-store" });
   return jsonOrThrow<AppSettings>(r);

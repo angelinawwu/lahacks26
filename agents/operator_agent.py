@@ -152,7 +152,7 @@ def find_future_available_clinicians(
     return future_available
 
 SEED = os.getenv("OPERATOR_SEED", "operator-dev-seed")
-PORT = int(os.getenv("OPERATOR_PORT", "8001"))
+PORT = int(os.getenv("OPERATOR_PORT", "9001"))
 DB_PATH = os.getenv("CLINICIANS_DB", "db/clinicians.json")
 
 agent = Agent(

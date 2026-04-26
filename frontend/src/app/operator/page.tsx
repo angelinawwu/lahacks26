@@ -12,6 +12,8 @@ import { CoverageBanner } from "@/components/CoverageBanner";
 import { getBackendSocket } from "@/lib/backendSocket";
 import { getClinicians } from "@/lib/api";
 import { getQueue, getSettings } from "@/lib/backendApi";
+import { PendingApprovalRow } from "@/components/operator/PendingApprovalRow";
+import { ManualOverridePanel } from "@/components/operator/ManualOverridePanel";
 import Link from "next/link";
 import { inferFloorWing } from "@/lib/floorData";
 import type { FloorId } from "@/lib/floorData";
@@ -68,17 +70,21 @@ export default function OperatorPage() {
 
   // Backend (Flask :8001) state
   const [queue, setQueue] = useState<QueuePage[]>([]);
+  const [pending, setPending] = useState<QueuePage[]>([]);
   const [recs, setRecs] = useState<ProactiveRecommendation[]>([]);
   const [activeRec, setActiveRec] = useState<ProactiveRecommendation | null>(null);
   const [recsOpen, setRecsOpen] = useState(false);
   const [patterns, setPatterns] = useState<PatternSignal[]>([]);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
 
-  // Load default operator view once on mount
+  // Load default operator view and manual mode state once on mount
   useEffect(() => {
     if (defaultViewLoaded) return;
     getSettings()
       .then((s) => {
         setTab(s.default_operator_view === "feed" ? 2 : 1);
+        setManualMode(s.global_mode === "manual");
       })
       .catch(() => {})
       .finally(() => setDefaultViewLoaded(true));
@@ -121,6 +127,16 @@ export default function OperatorPage() {
         setAlerts(snap.active_pages.map(pageToAlert).reverse());
       }
     };
+    const onPendingApproval = (page: QueuePage) => {
+      setPending((prev) => {
+        const idx = prev.findIndex((p) => p.id === page.id);
+        if (idx === -1) return [page, ...prev];
+        const copy = prev.slice();
+        copy[idx] = { ...copy[idx], ...page };
+        return copy;
+      });
+    };
+
     const onPaged = (page: QueuePage) => {
       const a = pageToAlert(page);
       upsertAlert(a);
@@ -160,6 +176,14 @@ export default function OperatorPage() {
     const onPageCancelled = (page: QueuePage) => {
       upsertAlert(pageToAlert(page));
       removeQueue(page.id);
+      setPending((prev) => prev.filter((p) => p.id !== page.id));
+    };
+
+    const onSettingsUpdated = (s: { global_mode?: string }) => {
+      if (s.global_mode !== undefined) setManualMode(s.global_mode === "manual");
+    };
+    const onModesUpdated = (m: { global_mode?: string }) => {
+      if (m.global_mode !== undefined) setManualMode(m.global_mode === "manual");
     };
     const onDoctorChanged = (e: { id: string; status?: string; zone?: string }) => {
       setClinicians((prev) =>
@@ -205,7 +229,9 @@ export default function OperatorPage() {
     };
 
     socket.on("snapshot", onSnapshot);
+    socket.on("page_pending_approval", onPendingApproval);
     socket.on("doctor_paged", onPaged);
+    socket.on("alert_created", onPaged);
     socket.on("page_response", onPageResponse);
     socket.on("page_escalated", onPageEscalated);
     socket.on("page_cancelled", onPageCancelled);
@@ -214,6 +240,8 @@ export default function OperatorPage() {
     socket.on("proactive_recommendation_acked", onProactiveAcked);
     socket.on("pattern_detected", onPattern);
     socket.on("pattern_cleared", onPatternCleared);
+    socket.on("settings_updated", onSettingsUpdated);
+    socket.on("paging_modes_updated", onModesUpdated);
 
     getQueue()
       .then((res) => {
@@ -225,7 +253,9 @@ export default function OperatorPage() {
 
     return () => {
       socket.off("snapshot", onSnapshot);
+      socket.off("page_pending_approval", onPendingApproval);
       socket.off("doctor_paged", onPaged);
+      socket.off("alert_created", onPaged);
       socket.off("page_response", onPageResponse);
       socket.off("page_escalated", onPageEscalated);
       socket.off("page_cancelled", onPageCancelled);
@@ -234,6 +264,8 @@ export default function OperatorPage() {
       socket.off("proactive_recommendation_acked", onProactiveAcked);
       socket.off("pattern_detected", onPattern);
       socket.off("pattern_cleared", onPatternCleared);
+      socket.off("settings_updated", onSettingsUpdated);
+      socket.off("paging_modes_updated", onModesUpdated);
     };
   }, []);
 
@@ -359,20 +391,35 @@ export default function OperatorPage() {
           />
           <button
             type="button"
+            onClick={() => setOverrideOpen(true)}
             style={{
               fontSize: 12,
               padding: "4px 10px",
-              border: HAIRLINE,
+              border: manualMode ? "0.5px solid #E0A100" : HAIRLINE,
               borderRadius: 20,
-              color: "var(--color-text-secondary)",
-              background: "transparent",
+              color: manualMode ? "#E0A100" : "var(--color-text-secondary)",
+              background: manualMode ? "rgba(224,161,0,0.08)" : "transparent",
               cursor: "pointer",
+              fontWeight: manualMode ? 600 : 400,
               transition: "background 200ms ease",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-background-secondary)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = manualMode ? "rgba(224,161,0,0.15)" : "var(--color-background-secondary)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = manualMode ? "rgba(224,161,0,0.08)" : "transparent"; }}
           >
-            Override
+            {manualMode ? "Manual mode" : "Override"}
+            {pending.length > 0 && (
+              <span style={{
+                marginLeft: 6,
+                background: "#E0A100",
+                color: "#fff",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "1px 6px",
+              }}>
+                {pending.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -419,14 +466,47 @@ export default function OperatorPage() {
                 onAlertSelect={handleAlertSelect}
               />
             </div>
-            <div style={{ minHeight: 0, overflow: "hidden", borderTop: HAIRLINE }}>
-              <QueuePanel pages={queue} onUpdate={upsertQueueLocal} />
+            <div style={{ minHeight: 0, overflow: "hidden", borderTop: HAIRLINE, display: "flex", flexDirection: "column" }}>
+              {pending.length > 0 && (
+                <div style={{ flexShrink: 0, padding: "10px 12px 0", overflowY: "auto", maxHeight: "40%" }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "#E0A100", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 6 }}>
+                    Pending approval ({pending.length})
+                  </div>
+                  {pending.map((p) => (
+                    <PendingApprovalRow
+                      key={p.id}
+                      page={p}
+                      clinicians={clinicians}
+                      onApproved={(updated) => {
+                        setPending((prev) => prev.filter((x) => x.id !== updated.id));
+                        upsertQueueLocal(updated);
+                        upsertAlert(pageToAlert(updated));
+                      }}
+                      onRejected={(id) => setPending((prev) => prev.filter((x) => x.id !== id))}
+                    />
+                  ))}
+                </div>
+              )}
+              <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+                <QueuePanel pages={queue} onUpdate={upsertQueueLocal} />
+              </div>
             </div>
           </div>
         </div>
       ) : (
         <CasesTable cases={alerts} onFloorSelect={handleFloorSelect} onAlertSelect={handleAlertSelect} />
       )}
+
+      <ManualOverridePanel
+        open={overrideOpen}
+        onClose={() => setOverrideOpen(false)}
+        clinicians={clinicians}
+        onPageSent={(page) => {
+          setOverrideOpen(false);
+          upsertQueueLocal(page);
+          upsertAlert(pageToAlert(page));
+        }}
+      />
 
       {recToShow ? (
         <ProactiveModal

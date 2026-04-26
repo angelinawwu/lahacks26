@@ -102,28 +102,37 @@ def build_specialty_query(alert: AlertMessage) -> List[str]:
     return ["emergency_medicine", "internal_medicine"]
 
 
-def query_clinicians(db: TinyDB, specialties: List[str], 
-                     require_available: bool = True) -> List[Dict[str, Any]]:
-    """Query TinyDB for clinicians matching criteria."""
+# Statuses that mean the clinician cannot be paged. `on_call` doctors who are
+# `in_procedure` are still pageable for urgent cases — handled below.
+_UNPAGEABLE_STATUSES = {"off_shift", "on_break", "on_case"}
+
+
+def is_clinician_available(doc: Dict[str, Any], priority: Optional[str] = None) -> bool:
+    """
+    Return True iff the clinician is currently pageable.
+
+    Available means:
+      - status == "available", OR
+      - status == "in_procedure" AND on_call AND priority in (P1, P2)
+        (an on-call surgeon can break to take an emergency)
+
+    Excluded: off_shift, on_break, on_case, and non-on-call in_procedure.
+    """
+    status = (doc.get("status") or "").lower()
+    if status == "available":
+        return True
+    if status == "in_procedure" and doc.get("on_call") and priority in ("P1", "P2"):
+        return True
+    return False
+
+
+def query_clinicians(db: TinyDB, specialties: List[str],
+                     priority: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Query TinyDB for clinicians matching specialty AND currently available."""
     Clinician = Query()
-    
-    # Base query: not off_shift (unless explicitly on_call for high priority)
-    base_query = Clinician.status != "off_shift"
-    
-    # Specialty match (any of the listed specialties)
     specialty_query = Clinician.specialty.any(specialties)
-    
-    # Combined query
-    results = db.search(base_query & specialty_query)
-    
-    # Filter out in_procedure unless they're on_call and it's urgent
-    available = []
-    for r in results:
-        if r.get("status") == "in_procedure" and not r.get("on_call"):
-            continue
-        available.append(r)
-    
-    return available
+    results = db.search(specialty_query)
+    return [r for r in results if is_clinician_available(r, priority)]
 
 
 def score_candidates(candidates: List[Dict], target_zone: str, 
@@ -307,13 +316,15 @@ def process_case(
     specialties = build_specialty_query(alert)
     _log.info(f"[case_handler] querying specialties: {specialties}, target_zone: {target_zone}")
 
-    candidates = query_clinicians(db, specialties)
-    _log.info(f"[case_handler] found {len(candidates)} candidates")
+    candidates = query_clinicians(db, specialties, priority)
+    _log.info(f"[case_handler] found {len(candidates)} available candidates")
 
     if not candidates:
         _log.warning("[case_handler] NO candidates found, emergency fallback to any available")
         candidates = query_clinicians(
-            db, ["emergency_medicine", "internal_medicine", "surgery", "anesthesiology"]
+            db,
+            ["emergency_medicine", "internal_medicine", "surgery", "anesthesiology"],
+            priority,
         )
 
     scored = score_candidates(candidates, target_zone, guardrail_flags)

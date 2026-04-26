@@ -59,6 +59,7 @@ from agents.case_handler import (
     get_zone_from_room,
     rank_with_asi1,
     fallback_rank,
+    is_clinician_available,
 )
 from agents.backend_client import get_backend_client, BackendClient
 from agents.queue_manager import get_queue_manager, PageQueueManager
@@ -555,19 +556,30 @@ async def process_alert(alert: OurAlertMessage) -> DispatchDecision:
             if team_specialty not in specialties:
                 specialties.append(team_specialty)
     
-    # Filter doctors by specialty from live backend data
+    # Filter doctors by specialty AND availability from live backend data.
+    # Without the availability gate the agent could pick a doctor who is
+    # off_shift / on_break / on_case / in_procedure — they'd never receive
+    # the page (no socket listener), so the page silently dies.
     candidates = []
     for doc_id, doc in doctors_map.items():
+        if not is_clinician_available(doc, priority):
+            continue
         doc_specialties = doc.get("specialty", [])
         if any(s in doc_specialties for s in specialties):
             candidates.append(doc)
-    
+
     if not candidates:
-        # Emergency fallback
+        # Emergency fallback — still must be available
         for doc_id, doc in doctors_map.items():
+            if not is_clinician_available(doc, priority):
+                continue
             doc_specialties = doc.get("specialty", [])
             if any(s in doc_specialties for s in ["emergency_medicine", "internal_medicine", "surgery"]):
                 candidates.append(doc)
+    _log.info(
+        "agent.candidates cid=%s n_available=%d total_doctors=%d specialties=%s",
+        cid, len(candidates), len(doctors_map), specialties,
+    )
     
     # Apply scoring
     scored = score_candidates(candidates, target_zone, priority_resp.guardrail_flags)

@@ -33,6 +33,7 @@
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
 /* Pulsing P1 room highlight for the floor map */

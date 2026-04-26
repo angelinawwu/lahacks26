@@ -321,8 +321,26 @@ async def _emit_dispatch_from_decision(
         "reasoning": decision.details.get("priority_handler_reasoning", decision.reasoning),
         "fallback_used": False,
     }
+    # Build candidate list from the decision: primary first, then backups.
+    candidates_dump: list[dict[str, Any]] = []
+    if decision.selected_clinician_id:
+        candidates_dump.append({
+            "id": decision.selected_clinician_id,
+            "name": decision.selected_clinician_name or decision.selected_clinician_id,
+            "score": 1.0,
+            "reasoning": decision.reasoning,
+        })
+    for backup_id in (decision.backup_clinician_ids or []):
+        backup_doc = shared_state.DOCTORS.get(backup_id, {})
+        candidates_dump.append({
+            "id": backup_id,
+            "name": backup_doc.get("name", backup_id),
+            "score": 0.5,
+            "reasoning": "Backup candidate",
+        })
+
     case_dump = {
-        "candidates": [],
+        "candidates": candidates_dump,
         "specialty_query": decision.details.get("specialty_query", []),
         "total_available": decision.details.get("candidates_count", 0),
         "reasoning": decision.details.get("case_handler_reasoning", decision.reasoning),

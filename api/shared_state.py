@@ -141,16 +141,18 @@ def seed() -> None:
     CLINICIANS = {c["id"]: dict(c) for c in _get_clinicians_db().all()}
 
     # Merge TinyDB clinician fields into DOCTORS so the two datasets share one
-    # schema. DOCTORS drives the snapshot and the floor map; CLINICIANS drives
-    # dispatch.  Fields only in CLINICIANS (shift_start, shift_end, specialty
-    # overrides, on_call) are layered in; runtime stats in DOCTORS (
-    # page_count_1hr, active_cases) are preserved.
-    _CLINICIAN_MERGE_FIELDS = ("on_call", "shift_start", "shift_end", "specialty", "zone", "status")
+    # schema. CLINICIANS (db/clinicians.json) is the canonical roster — its
+    # identity fields (name, specialty) override DOCTORS to prevent the same
+    # id from resolving to two different people across views. Live operational
+    # fields (status, zone, on_call, shift times) are also taken from
+    # CLINICIANS when present. Runtime stats in DOCTORS (page_count_1hr,
+    # active_cases, pager_id, phone) are preserved.
+    _CANONICAL_FIELDS = ("name", "specialty", "on_call", "shift_start", "shift_end", "zone", "status")
     for cid, clin in CLINICIANS.items():
         if cid in DOCTORS:
-            for field in _CLINICIAN_MERGE_FIELDS:
+            for field in _CANONICAL_FIELDS:
                 if field in clin:
-                    DOCTORS[cid].setdefault(field, clin[field])
+                    DOCTORS[cid][field] = clin[field]
         else:
             # Clinician exists only in TinyDB (not in backend/data/doctors.json).
             # Add a minimal DOCTORS entry so snapshot includes them.

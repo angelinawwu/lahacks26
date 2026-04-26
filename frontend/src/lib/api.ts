@@ -5,17 +5,19 @@ const base = () =>
   "http://127.0.0.1:8001";
 
 export async function postDispatch(body: {
-  raw_text: string;
+  raw_text?: string | null;
   room?: string | null;
   specialty_hint?: string | null;
+  patient_id?: string | null;
 }): Promise<DispatchResult> {
   const r = await fetch(`${base()}/dispatch`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      raw_text: body.raw_text,
+      raw_text: body.raw_text || "",
       room: body.room || undefined,
       specialty_hint: body.specialty_hint || undefined,
+      patient_id: body.patient_id || undefined,
     }),
   });
   if (!r.ok) {

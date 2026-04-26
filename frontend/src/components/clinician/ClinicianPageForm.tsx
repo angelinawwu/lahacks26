@@ -67,6 +67,7 @@ export function ClinicianPageForm({ clinicianId }: Props) {
   const [text, setText] = useState("");
   const [room, setRoom] = useState("");
   const [specialty, setSpecialty] = useState("");
+  const [patientId, setPatientId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
@@ -91,14 +92,18 @@ export function ClinicianPageForm({ clinicianId }: Props) {
   }, []);
 
   async function dispatchText(raw: string) {
-    if (!raw.trim() || submitting) return;
+    if (submitting) return;
+    const trimmed = raw.trim();
+    // Allow submit if at least one field is provided.
+    if (!trimmed && !room && !specialty && !patientId.trim()) return;
     setSubmitting(true);
     setResult(null);
     try {
       const res = await postDispatch({
-        raw_text: raw.trim(),
+        raw_text: trimmed || undefined,
         room: room || undefined,
         specialty_hint: specialty || undefined,
+        patient_id: patientId.trim() || undefined,
       });
       const top = res.case?.candidates?.[0];
       setResult({
@@ -110,6 +115,7 @@ export function ClinicianPageForm({ clinicianId }: Props) {
       setText("");
       setRoom("");
       setSpecialty("");
+      setPatientId("");
     } catch (err) {
       setResult({ ok: false, msg: err instanceof Error ? err.message : "Failed to send" });
     } finally {
@@ -365,7 +371,6 @@ export function ClinicianPageForm({ clinicianId }: Props) {
                     : "e.g. Chest pain in room 412, patient diaphoretic"
                 }
                 rows={3}
-                required
                 style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
               />
               {listening && interim ? (
@@ -411,6 +416,18 @@ export function ClinicianPageForm({ clinicianId }: Props) {
               </div>
             </div>
 
+            <div>
+              <label style={labelStyle} htmlFor="page-patient-id">Patient ID</label>
+              <input
+                id="page-patient-id"
+                type="text"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                placeholder="e.g. P-1042"
+                style={inputStyle}
+              />
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
               {result ? (
                 <span
@@ -426,9 +443,12 @@ export function ClinicianPageForm({ clinicianId }: Props) {
                   From {clinicianId}
                 </span>
               )}
+              {(() => {
+                const hasAny = !!(text.trim() || room || specialty || patientId.trim());
+                return (
               <button
                 type="submit"
-                disabled={submitting || !text.trim()}
+                disabled={submitting || !hasAny}
                 style={{
                   padding: "8px 14px",
                   border: HAIRLINE,
@@ -439,11 +459,13 @@ export function ClinicianPageForm({ clinicianId }: Props) {
                   fontWeight: 500,
                   cursor: submitting ? "default" : "pointer",
                   transition: "opacity 200ms ease",
-                  opacity: !text.trim() ? 0.5 : 1,
+                  opacity: !hasAny ? 0.5 : 1,
                 }}
               >
                 {submitting ? "Sending…" : "Send page"}
               </button>
+                );
+              })()}
             </div>
           </form>
         ) : null}

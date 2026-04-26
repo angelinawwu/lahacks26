@@ -23,7 +23,11 @@ from agents.models import (
     PriorityResponse,
     CaseResponse,
     DispatchDecision,
+    SentinelInsight,
+    ProactiveRecommendation,
+    SBARBrief,
 )
+from agents.skills.brief import generate_brief
 from agents.asi_client import asi1_chat, extract_json
 from agents.priority_handler import classify as priority_classify
 from agents.case_handler import (
@@ -776,6 +780,200 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
 @agent.on_message(model=ChatAcknowledgement)
 async def handle_chat_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
     ctx.logger.info(f"[operator] ack from {sender[:12]}")
+
+
+# ============================================================================
+# Proactive Mode — handle SentinelInsight from Sentinel Agent
+# ============================================================================
+PROACTIVE_SYSTEM_PROMPT = """You are the Operator Agent's proactive-reasoning
+brain. The Sentinel Agent has detected a systemic-risk pattern in the
+hospital. Your job: decide what PREEMPTIVE action would help, and write a
+plain-language recommendation for the human operator on duty.
+
+You are NOT taking the action — the human operator must ACK first.
+
+Given the SentinelInsight JSON, respond ONLY with JSON:
+{
+  "recommendation": "<one sentence, plain English, no jargon, ≤140 chars>",
+  "rationale": "<one or two sentences explaining the why>",
+  "suggested_actions": [
+     {"type":"page"|"hold"|"reroute"|"alert_supervisor", "...":"..."}
+  ]
+}
+
+Action types:
+  - page              : pre-page a specific doctor (include doctor_id)
+  - hold              : suppress new non-urgent pages to a zone (include zone)
+  - reroute           : redirect new alerts in a zone to backup specialty
+  - alert_supervisor  : escalate to human supervisor / charge nurse
+
+Be concrete. If you can't safely recommend an action, suggest
+alert_supervisor.
+"""
+
+
+def _emit_proactive_to_backend(rec: ProactiveRecommendation):
+    """Push the recommendation to the backend so the operator dashboard sees it."""
+    try:
+        import requests
+        backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
+        requests.post(
+            f"{backend_url}/api/proactive/recommendation",
+            json={
+                "insight_id": rec.insight_id,
+                "pattern_type": rec.pattern_type,
+                "severity": rec.severity,
+                "recommendation": rec.recommendation,
+                "rationale": rec.rationale,
+                "suggested_actions": rec.suggested_actions,
+                "requires_ack": rec.requires_ack,
+                "created_at": rec.created_at,
+            },
+            timeout=2.0,
+        )
+    except Exception as e:
+        # Non-fatal — agent still has the recommendation in its log
+        print(f"[operator] proactive emit failed: {e}")
+
+
+@agent.on_message(model=SentinelInsight, replies=ProactiveRecommendation)
+async def handle_sentinel_insight(ctx: Context, sender: str, msg: SentinelInsight):
+    """Receive a systemic-risk pattern from Sentinel and produce a
+    plain-language recommendation for the human operator. ACK required
+    before any action is taken."""
+    ctx.logger.info(
+        f"[operator] sentinel insight: pattern={msg.pattern_type} "
+        f"severity={msg.severity} :: {msg.summary}"
+    )
+
+    insight_id = f"{msg.pattern_type}-{msg.detected_at}"
+
+    user_prompt = json.dumps({
+        "pattern_type": msg.pattern_type,
+        "severity": msg.severity,
+        "summary": msg.summary,
+        "affected_zones": msg.affected_zones,
+        "affected_specialties": msg.affected_specialties,
+        "affected_clinicians": msg.affected_clinicians,
+        "metrics": msg.metrics,
+        "confidence": msg.confidence,
+    }, default=str)
+
+    raw = await asyncio.to_thread(asi1_chat, PROACTIVE_SYSTEM_PROMPT, user_prompt, 0.2, 10.0)
+    parsed = extract_json(raw) if raw else None
+
+    if parsed and parsed.get("recommendation"):
+        recommendation = str(parsed["recommendation"])[:200]
+        rationale = str(parsed.get("rationale", ""))[:300]
+        actions = parsed.get("suggested_actions") or []
+        if not isinstance(actions, list):
+            actions = []
+    else:
+        # Fallback recommendation
+        recommendation = f"Review {msg.pattern_type.replace('_', ' ')} in affected area."
+        rationale = msg.summary or "Sentinel flagged a systemic risk."
+        actions = [{"type": "alert_supervisor", "reason": msg.pattern_type}]
+
+    rec = ProactiveRecommendation(
+        insight_id=insight_id,
+        pattern_type=msg.pattern_type,
+        severity=msg.severity,
+        recommendation=recommendation,
+        rationale=rationale,
+        suggested_actions=actions,
+        requires_ack=True,
+        created_at=datetime.now().isoformat(),
+    )
+
+    # Push to backend → socket → operator dashboard
+    await asyncio.to_thread(_emit_proactive_to_backend, rec)
+    ctx.logger.info(
+        f"[operator] proactive recommendation emitted: {recommendation[:80]}"
+    )
+
+    # Reply to Sentinel so it knows we processed it
+    await ctx.send(sender, rec)
+
+
+# ============================================================================
+# Brief Skill — invoked when a clinician accepts a page
+# ============================================================================
+class PageAcceptedNotice(Model):
+    """
+    Tiny envelope used to ask the Operator Agent to generate an SBAR brief
+    for a clinician who just accepted a page. Can be sent by the backend
+    (via uagents bridge) or by another agent.
+    """
+    page_id: str
+    clinician_id: str
+    alert_text: str
+    priority: Optional[str] = None
+    room: Optional[str] = None
+    patient_id: Optional[str] = None
+
+
+def _push_brief_to_backend(brief: SBARBrief):
+    """Push generated brief to backend so it can deliver to the clinician."""
+    try:
+        import requests
+        backend_url = os.getenv("BACKEND_URL", "http://127.0.0.1:8001")
+        requests.post(
+            f"{backend_url}/api/brief/deliver",
+            json={
+                "page_id": brief.page_id,
+                "clinician_id": brief.clinician_id,
+                "patient_id": brief.patient_id,
+                "brief_text": brief.brief_text,
+                "word_count": brief.word_count,
+                "generated_at": brief.generated_at,
+            },
+            timeout=2.0,
+        )
+    except Exception as e:
+        print(f"[operator] brief delivery failed: {e}")
+
+
+@agent.on_message(model=PageAcceptedNotice, replies=SBARBrief)
+async def handle_page_accepted(ctx: Context, sender: str, msg: PageAcceptedNotice):
+    """A clinician just accepted a page → generate a sub-100-word SBAR brief."""
+    ctx.logger.info(
+        f"[operator] page accepted by {msg.clinician_id} → generating SBAR brief"
+    )
+
+    # Best-effort EHR / patient lookup
+    patient: Optional[Dict[str, Any]] = None
+    if msg.room:
+        patient = lookup_ehr_by_room(msg.room)
+    if not patient and msg.patient_id:
+        try:
+            backend = get_backend_client()
+            patient = await backend.get_patient_with_ehr(msg.patient_id)
+        except Exception:
+            patient = None
+
+    alert_dict = {
+        "raw_text": msg.alert_text,
+        "priority": msg.priority,
+        "room": msg.room,
+    }
+
+    brief = await generate_brief(
+        alert=alert_dict,
+        patient=patient,
+        scene={"requested_by": sender, "paged_at": datetime.now().isoformat()},
+        page_id=msg.page_id,
+        clinician_id=msg.clinician_id,
+    )
+
+    ctx.logger.info(
+        f"[operator] brief generated ({brief.word_count} words) for {msg.clinician_id}"
+    )
+
+    # Deliver via backend (which forwards over socket / Chat Protocol)
+    await asyncio.to_thread(_push_brief_to_backend, brief)
+
+    # Also reply to caller
+    await ctx.send(sender, brief)
 
 
 if __name__ == "__main__":

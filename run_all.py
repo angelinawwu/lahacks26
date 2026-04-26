@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 os.environ.setdefault("OPERATOR_PORT", "8001")
 os.environ.setdefault("PRIORITY_PORT", "8002")
 os.environ.setdefault("CASE_PORT", "8003")
+os.environ.setdefault("SENTINEL_PORT", "8004")
 
 
 def run_priority():
@@ -50,10 +51,26 @@ def run_operator():
     agent.run()
 
 
+def run_sentinel():
+    """Start Sentinel Agent in its own process (30s interval pattern detector)."""
+    import asyncio
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    from agents.sentinel_agent import agent
+    agent.run()
+
+
+def derive_operator_address() -> str:
+    """Compute the Operator Agent's address from its seed without booting it."""
+    from uagents import Agent
+    seed = os.getenv("OPERATOR_SEED", "operator-dev-seed")
+    a = Agent(name="operator_agent", seed=seed)
+    return a.address
+
+
 def wait_for_agents(timeout: float = 30.0) -> bool:
     """Quick health check that all agents are listening."""
     import socket
-    ports = [8001, 8002, 8003]
+    ports = [8001, 8002, 8003, 8004]
     start = time.time()
     while time.time() - start < timeout:
         all_ready = True
@@ -86,13 +103,24 @@ def main():
     print("  - Priority Handler:               port 8002")
     print("  - Case Handler:                   port 8003")
     print("  - Operator Agent (Chat Protocol): port 8001")
+    print("  - Sentinel Agent (30s timer):     port 8004")
     print("")
     
+    # Pre-compute Operator's address so the Sentinel knows where to send insights.
+    try:
+        op_addr = derive_operator_address()
+        os.environ["OPERATOR_ADDRESS"] = op_addr
+        print(f"  - Operator address: {op_addr}")
+    except Exception as e:
+        print(f"  ⚠️  Could not derive OPERATOR_ADDRESS: {e}")
+    print("")
+
     # Start agents in separate processes (not threads - each needs own event loop)
     processes = [
         multiprocessing.Process(target=run_priority, name="priority"),
         multiprocessing.Process(target=run_case, name="case"),
         multiprocessing.Process(target=run_operator, name="operator"),
+        multiprocessing.Process(target=run_sentinel, name="sentinel"),
     ]
     
     for p in processes:

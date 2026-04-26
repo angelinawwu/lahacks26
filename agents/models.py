@@ -143,3 +143,62 @@ class DispatchDecision(Model):
     time_queued: bool = False  # whether this is a delayed dispatch
     estimated_dispatch_time: Optional[str] = None  # ISO timestamp if time-queued
     details: Dict[str, Any] = {}                  # any extra debug info
+
+
+# ---------------------------------------------------------------------------
+# Sentinel Agent — pattern detection / systemic risk monitoring
+# ---------------------------------------------------------------------------
+class SentinelInsight(Model):
+    """
+    Pushed from Sentinel Agent → Operator Agent when a systemic-risk pattern
+    is detected.
+
+    pattern_type values:
+      - "alert_concentration"       : multiple alerts clustered in one zone
+      - "ack_gap"                   : pages going unacknowledged
+      - "coverage_hole"             : specialty has 0 available clinicians
+      - "caseload_concentration"    : one clinician carrying too many cases
+      - "off_hours_risk"            : reduced staffing window
+    """
+    pattern_type: str
+    severity: str  # "info" | "warning" | "critical"
+    summary: str
+    affected_zones: List[str] = []
+    affected_specialties: List[str] = []
+    affected_clinicians: List[str] = []
+    metrics: Dict[str, Any] = {}
+    detected_at: str  # ISO timestamp
+    confidence: float = 0.7
+    raw_reasoning: str = ""
+
+
+class ProactiveRecommendation(Model):
+    """
+    Operator Agent's reasoned response to a SentinelInsight. Surfaced to the
+    operator dashboard as a plain-language recommendation. Operator must
+    ACK before any action is taken.
+    """
+    insight_id: str
+    pattern_type: str
+    severity: str
+    recommendation: str        # plain-language action ("Pre-page Dr. Chen to ICU")
+    rationale: str             # why this preemptive action
+    suggested_actions: List[Dict[str, Any]] = []  # structured: [{"type":"page","doctor_id":"dr_chen"},...]
+    requires_ack: bool = True
+    created_at: str
+
+
+# ---------------------------------------------------------------------------
+# Brief Skill — SBAR handoff brief delivered post-acceptance
+# ---------------------------------------------------------------------------
+class SBARBrief(Model):
+    """
+    Compact SBAR (Situation, Background, Assessment, Request) brief delivered
+    to a clinician immediately after they accept a page. <100 words total.
+    """
+    page_id: str
+    clinician_id: str
+    patient_id: Optional[str] = None
+    brief_text: str                 # full SBAR formatted brief
+    word_count: int = 0
+    generated_at: str

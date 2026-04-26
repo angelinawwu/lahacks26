@@ -122,6 +122,8 @@ def respond_to_page(page_id):
     Side effects:
       - Updates page record status
       - Emits `page_response` → operators Socket.IO room
+      - On 'accept': spawns the Operator Agent's Brief skill in a background
+        thread and forwards the resulting SBAR brief to the clinician.
     """
     page = state.PAGES.get(page_id)
     if not page:
@@ -136,5 +138,96 @@ def respond_to_page(page_id):
     page["status"] = "accepted" if outcome == "accept" else "declined"
     page["responded_at"] = _now()
 
-    current_app.socketio.emit("page_response", page, room="operators")
+    sio = current_app.socketio
+    sio.emit("page_response", page, room="operators")
+
+    # On accept: trigger the Operator Agent's Brief skill in the background.
+    if outcome == "accept":
+        try:
+            sio.start_background_task(_generate_and_deliver_brief, page)
+        except Exception as e:
+            current_app.logger.warning(f"brief task spawn failed: {e}")
+
     return jsonify(page)
+
+
+def _generate_and_deliver_brief(page: dict) -> None:
+    """
+    Run the agent's Brief skill (SBAR generator) and emit the result to the
+    accepting clinician via Socket.IO. Runs in the eventlet/socketio
+    background context — must NOT block the request thread.
+    """
+    try:
+        # Local import to avoid pulling agent deps at backend boot if unused.
+        from agents.skills.brief import generate_brief_sync
+    except Exception as e:
+        print(f"[backend] brief skill unavailable: {e}")
+        return
+
+    page_id = page.get("id", "")
+    clinician_id = page.get("doctor_id", "")
+    patient_id = page.get("patient_id")
+
+    # Pull patient + EHR if known
+    patient = None
+    if patient_id:
+        p = state.PATIENTS.get(patient_id)
+        if p:
+            ehr = state.EHR.get(patient_id, {}) if hasattr(state, "EHR") else {}
+            patient = {**p, **(ehr or {})}
+
+    alert = {
+        "raw_text": page.get("message", ""),
+        "priority": page.get("priority"),
+        "room": page.get("room"),
+    }
+    scene = {
+        "requested_by": page.get("requested_by"),
+        "paged_at": page.get("created_at"),
+        "responded_at": page.get("responded_at"),
+        "escalated_from": (page.get("escalation_history") or [{}])[-1].get("from_doctor")
+        if page.get("escalation_history") else None,
+    }
+
+    try:
+        brief = generate_brief_sync(
+            alert=alert,
+            patient=patient,
+            scene=scene,
+            page_id=page_id,
+            clinician_id=clinician_id,
+        )
+    except Exception as e:
+        print(f"[backend] brief generation failed: {e}")
+        return
+
+    # Store + deliver. We import here so circular-import risk stays local.
+    try:
+        from routes.proactive import BRIEFS
+        BRIEFS[page_id] = {
+            "page_id": brief.page_id,
+            "clinician_id": brief.clinician_id,
+            "patient_id": brief.patient_id,
+            "brief_text": brief.brief_text,
+            "word_count": brief.word_count,
+            "generated_at": brief.generated_at,
+        }
+    except Exception:
+        pass
+
+    # Forward to clinician + operators dashboard
+    try:
+        from flask import current_app as ca
+        sio = ca.socketio  # type: ignore[attr-defined]
+        payload = {
+            "page_id": brief.page_id,
+            "clinician_id": brief.clinician_id,
+            "patient_id": brief.patient_id,
+            "brief_text": brief.brief_text,
+            "word_count": brief.word_count,
+            "generated_at": brief.generated_at,
+        }
+        sio.emit("sbar_brief", payload, room=clinician_id)
+        sio.emit("sbar_brief", payload, room="operators")
+    except Exception as e:
+        print(f"[backend] brief socket emit failed: {e}")

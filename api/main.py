@@ -411,6 +411,29 @@ async def connect(sid: str, environ: Dict[str, Any], auth: Optional[Dict[str, An
     if clinician_id:
         await sio.enter_room(sid, clinician_id)
         _log.info("clinician %s connected sid=%s", clinician_id, sid)
+        # Replay any pages already dispatched to this clinician — without this,
+        # pages sent before the view subscribed never reach the UI.
+        pending_for_me = [
+            p for p in shared_state.PAGES.values()
+            if p.get("doctor_id") == clinician_id
+            and p.get("status") in ("paging", "pending", "escalated")
+        ]
+        pending_for_me.sort(key=lambda p: p.get("created_at") or "")
+        for p in pending_for_me:
+            await sio.emit(
+                "incoming_page",
+                {
+                    "page_id": p.get("id") or p.get("alert_id"),
+                    "alert_id": p.get("id") or p.get("alert_id"),
+                    "title": p.get("title") or p.get("message") or "",
+                    "room": p.get("room"),
+                    "priority": p.get("priority"),
+                    "reasoning": p.get("reasoning") or p.get("message") or "",
+                    "created_at": p.get("created_at"),
+                    "ack_deadline_seconds": p.get("ack_deadline_seconds", 60),
+                },
+                to=sid,
+            )
 
 
 @sio.event

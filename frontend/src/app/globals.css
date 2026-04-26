@@ -30,9 +30,25 @@
   }
 }
 
-body {
+html, body {
   color: var(--foreground);
   background: var(--background);
+  font-family: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Display font — reserved for the app header only */
+.font-display {
+  font-family: var(--font-brawler), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Monospace — labels/captions in ALL CAPS only */
+.font-mono-label {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 /* Pulsing P1 room highlight for the floor map */

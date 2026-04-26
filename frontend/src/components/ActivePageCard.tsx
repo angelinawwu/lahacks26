@@ -80,7 +80,7 @@ export function ActivePageCard({
           style={{
             fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
             fontSize: 13,
-            fontWeight: 500,
+            fontWeight: 300,
             color: overdue ? "var(--color-text-danger)" : "var(--color-text-primary)",
           }}
         >

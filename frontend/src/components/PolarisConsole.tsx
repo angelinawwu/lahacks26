@@ -68,7 +68,7 @@ export function PolarisConsole() {
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <header className="mb-8 border-b border-zinc-800/80 pb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">
+          <h1 className="font-display text-3xl tracking-tight text-zinc-50 sm:text-4xl">
             Polaris dispatch
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-zinc-400">
@@ -144,7 +144,7 @@ export function PolarisConsole() {
                   <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-300">
                     Triage
                   </h2>
-                  <span className="rounded-md bg-black/20 px-2.5 py-0.5 font-mono text-lg font-semibold">
+                  <span className="rounded-md bg-black/20 px-2.5 py-0.5 font-mono text-lg font-light">
                     {pr.priority}
                   </span>
                 </div>
@@ -186,7 +186,7 @@ export function PolarisConsole() {
                         <span className="font-medium text-zinc-100">
                           {i + 1}. {c.name}
                         </span>
-                        <span className="font-mono text-xs text-zinc-500">
+                        <span className="font-mono text-xs font-light text-zinc-500">
                           {(c.score * 100).toFixed(0)}% · ~{c.eta_minutes ?? "?"} min
                         </span>
                       </div>

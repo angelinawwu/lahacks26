@@ -50,6 +50,41 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
   const currentAlert = selectedAlert !== undefined ? selectedAlert : internalSelectedAlert;
   const handleAlertSelect = onAlertSelect || setInternalSelectedAlert;
 
+  // Keyboard shortcuts: 0 → Floor A, 1–6 → Floors 1–6, Space → all floors.
+  // Ignored while the user is typing into an input/textarea/contenteditable.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT" ||
+          t.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        handleFloorSelect(null);
+        return;
+      }
+      if (e.key === "0") {
+        e.preventDefault();
+        handleFloorSelect("A");
+        return;
+      }
+      if (/^[1-6]$/.test(e.key)) {
+        e.preventDefault();
+        handleFloorSelect(e.key as FloorId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [handleFloorSelect]);
+
   // Track the most recently selected floor so the exit animation can tilt
   // the FloorPlan back to the correct parallelogram slot in the stack even
   // after `currentFloor` has been cleared.
@@ -99,13 +134,13 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
           background: "#FFFFFF",
         }}
       >
-        <span style={{ fontSize: 11, color: "#64748B", marginRight: 4 }}>Floor</span>
+        <span style={{ fontSize: 11, color: "#64748B", marginRight: 4, fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 300, textTransform: "uppercase", letterSpacing: "0.08em" }}>Floor</span>
         <button
           type="button"
           onClick={() => handleFloorSelect(null)}
           style={{
             fontSize: 12,
-            fontWeight: 500,
+            fontWeight: 300,
             padding: "4px 12px",
             borderRadius: 999,
             border: "1px solid #CBD5E1",
@@ -113,6 +148,9 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
             color: !currentFloor ? "#F8FAFC" : "#0F172A",
             cursor: "pointer",
             transition: "background 200ms ease, color 200ms ease",
+            fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
           }}
         >
           All
@@ -126,7 +164,7 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
               onClick={() => handleFloorSelect(id)}
               style={{
                 fontSize: 12,
-                fontWeight: 500,
+                fontWeight: 300,
                 padding: "4px 12px",
                 borderRadius: 999,
                 border: "1px solid #CBD5E1",
@@ -134,6 +172,9 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                 color: active ? "#F8FAFC" : "#0F172A",
                 cursor: "pointer",
                 transition: "background 200ms ease, color 200ms ease",
+                fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
               }}
             >
               {id}
@@ -183,7 +224,7 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                 right: 16,
                 bottom: 16,
                 fontSize: 12,
-                fontWeight: 500,
+                fontWeight: 300,
                 padding: "6px 12px",
                 borderRadius: 999,
                 border: "1px solid #CBD5E1",
@@ -192,6 +233,9 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                 cursor: "pointer",
                 boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
                 transition: "background 200ms ease, color 200ms ease",
+                fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
               }}
             >
               ← All floors
@@ -224,7 +268,7 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    fontWeight: 500,
+                    fontWeight: 300,
                     padding: "6px 12px",
                     borderRadius: 999,
                     border: "1px solid #CBD5E1",
@@ -233,6 +277,9 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                     cursor: prev ? "pointer" : "not-allowed",
                     boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
                     transition: "background 200ms ease, color 200ms ease",
+                    fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
                   }}
                 >
                   <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>↓</span>
@@ -246,9 +293,12 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                     alignItems: "center",
                     gap: 4,
                     fontSize: 13,
-                    fontWeight: 600,
+                    fontWeight: 300,
                     color: "#0F172A",
                     padding: "0 6px",
+                    fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
                   }}
                 >
                   Floor {currentFloor}
@@ -263,7 +313,7 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                     alignItems: "center",
                     gap: 6,
                     fontSize: 12,
-                    fontWeight: 500,
+                    fontWeight: 300,
                     padding: "6px 12px",
                     borderRadius: 999,
                     border: "1px solid #CBD5E1",
@@ -272,6 +322,9 @@ export function FloorMap({ clinicians, alerts, selectedFloor, onFloorSelect, onC
                     cursor: next ? "pointer" : "not-allowed",
                     boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
                     transition: "background 200ms ease, color 200ms ease",
+                    fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
                   }}
                 >
                   <span style={{ fontSize: 10, color: "#64748B" }}>Floor</span>

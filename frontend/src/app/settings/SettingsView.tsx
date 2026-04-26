@@ -337,7 +337,7 @@ export function SettingsView() {
           background: "var(--color-background-primary)",
         }}
       >
-        <span style={{ fontSize: 15, fontWeight: 500 }}>Polaris — Settings</span>
+        <span className="font-display" style={{ fontSize: 18, fontWeight: 400 }}>Polaris — Settings</span>
         <div className="flex items-center gap-3">
           <Link
             href="/operator"

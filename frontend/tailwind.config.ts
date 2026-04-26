@@ -33,6 +33,11 @@ export default {
       borderWidth: {
         hairline: "0.5px",
       },
+      fontFamily: {
+        sans: ["var(--font-archivo)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-brawler)", "ui-serif", "Georgia", "serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      },
       fontSize: {
         "2xs": ["10px", "14px"],
         "3xs": ["9px", "12px"],

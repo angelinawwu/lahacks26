@@ -200,7 +200,7 @@ export function ClinicianView({ id }: { id: string }) {
         >
           ← Directory
         </Link>
-        <span style={{ fontSize: 15, fontWeight: 600 }}>Polaris</span>
+        <span className="font-display" style={{ fontSize: 18, fontWeight: 400 }}>Polaris</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{displayName}</span>
           <span

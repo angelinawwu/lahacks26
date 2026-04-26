@@ -8,6 +8,7 @@ import {
   WING_COLORS,
   STATUS_COLORS,
   PRIORITY_PULSE,
+  roomRect3D,
   type FloorId,
   type WingId,
   type Rect,
@@ -35,7 +36,8 @@ const COS_Y = Math.cos(ISO_ANGLE_Y);
 const PLANE_W = 380;
 const PLANE_H = 160;
 const LABEL_LEFT_X = 220;
-const LABEL_W = 65;
+const LABEL_W = 72;
+const LABEL_H = 24;
 // Vertical (z) gap between stacked floors.
 const FLOOR_GAP = 60;
 // Diagonal stagger per floor in screen-space (x shifts right as floors go up).
@@ -172,7 +174,7 @@ export function FloorStack({
             {f.rooms.map((room) => (
               <path
                 key={room.id}
-                d={rectPath(room.rect, baseZ)}
+                d={rectPath(roomRect3D(room), baseZ)}
                 fill="none"
                 stroke={WING_COLORS[room.wing].stroke}
                 strokeWidth={0.5}
@@ -226,20 +228,27 @@ export function FloorStack({
             <g>
               <rect
                 x={LABEL_LEFT_X - LABEL_W}
-                y={labelAnchor.y - 8}
+                y={labelAnchor.y - LABEL_H / 2}
                 width={LABEL_W}
-                height={20}
-                rx={3}
+                height={LABEL_H}
+                rx={LABEL_H / 2}
                 fill={isHovered ? "#F1F5F9" : "#FFFFFF"}
                 stroke="#CBD5E1"
                 strokeWidth={1}
               />
               <text
                 x={LABEL_LEFT_X - LABEL_W / 2}
-                y={labelAnchor.y + 3}
-                dominantBaseline="middle"
+                y={labelAnchor.y}
+                dominantBaseline="central"
                 textAnchor="middle"
-                style={{ fontSize: 11, fontWeight: 600, fill: "#0F172A" }}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 300,
+                  fill: "#0F172A",
+                  fontFamily: "var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
               >
                 {f.label}
               </text>

@@ -347,7 +347,7 @@ export default function OperatorPage() {
         className="flex items-center justify-between"
         style={{ padding: "12px 16px", borderBottom: HAIRLINE, background: "var(--color-background-primary)" }}
       >
-        <span style={{ fontSize: 15, fontWeight: 500 }}>Polaris — Operator</span>
+        <span className="font-display" style={{ fontSize: 18, fontWeight: 400 }}>Polaris — Operator</span>
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
             UCLA Medical Center · Santa Monica
